@@ -1,0 +1,22 @@
+@import "tailwindcss";
+
+@theme {
+  /* Fonts */
+  --font-serif: "Quantico", 'Noto Sans TC', 微軟正黑體, serif;
+}
+
+@utility clip-br-bevel {
+  clip-path: polygon(0 0, 100% 0, 100% calc(100% - 16px), calc(100% - 16px) 100%, 0 100%);
+}
+
+html {
+  scroll-behavior: smooth;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: var(--font-serif);
+  background-color: #111;
+  margin: 0;padding: 0;
+}

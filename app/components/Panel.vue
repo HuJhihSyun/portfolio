@@ -10,8 +10,11 @@
   ])
 
   const profileText = `Senior Front-End Engineer & Designer with 5+ years of experience specializing in the Vue ecosystem (Vue/Nuxt) and high-performance e-commerce platforms. Expert in blending design with code to build immersive, interactive web experiences using GSAP and D3.js. Proven track record in optimizing web performance (LCP/CLS) and delivering scalable architectures from concept to deployment.`
+  const profileText2 = `My journey into web development began at the intersection of aesthetics and logic. Early in my career, I acted as both a visual designer and front-end developer, mastering the art of storytelling through engaging interactions and rich animations with GSAP and D3.js. This dual perspective instilled in me a deep sensitivity to user experience that continues to guide my engineering decisions today.`
 
   const { output: profileOutput, setText } = useTextScramble({ duration: 40 })
+  // aboutText 專用的第二組 Text Scramble（顯示 profileText2）；初始為空，下捲才解碼呈現
+  const { output: aboutOutput, setText: setAboutText } = useTextScramble({ duration: 40 })
 
   onMounted(() => {
     setText(profileText)
@@ -28,14 +31,25 @@
   const revealOut = () => (exiting.value = true) // 下捲：播退場動畫
   const revealIn = () => (exiting.value = false) // 回捲：移除 class，還原成進場後的可見狀態
 
+  // 右側區塊（第二畫面）：nameWrap 的 Block Reveal 進退場狀態 + aboutText 的 Scramble
+  const nameState = ref<'hidden' | 'in' | 'out'>('hidden') // hidden=初始隱藏、in=進場、out=退場
+  const aboutIn = () => {
+    nameState.value = 'in' // nameWrap 播 Block Reveal 進場
+    setAboutText(profileText2) // aboutText 以亂數解碼呈現 profileText2
+  }
+  const aboutOut = () => {
+    nameState.value = 'out' // nameWrap 播 Block Reveal 退場
+    setAboutText('') // aboutText 亂數解散成空
+  }
+
   // 暴露給父層（index.vue）呼叫
-  defineExpose({ scrambleOut, scrambleIn, revealOut, revealIn })
+  defineExpose({ scrambleOut, scrambleIn, revealOut, revealIn, aboutIn, aboutOut })
 </script>
 
 <template>
   <div class="panel fixed w-[calc(100vw-48px)] h-[calc(100dvh-48px)] border-[0.5px] rounded-xl overflow-hidden">
     <div class="p-line top flex justify-center items-center border-b-[0.5px]">
-      <span class="panel-chip text-xs font-bold px-6 py-3 whitespace-nowrap clip-br-bevel">My Portfolio</span>
+      <span class="panel-chip text-xs font-bold pl-6 pr-7 py-3 whitespace-nowrap clip-br-bevel">My Portfolio</span>
       <nav class="w-full flex justify-center items-center text-xs px-6 py-3">
         <ul class="flex justify-center items-center gap-6 lg:gap-8 text-xs">
           <li v-for="item in menuList" :key="item.label">
@@ -65,13 +79,33 @@
           </h2>
         </article>
         <div ref="characterWrap" class="absolute left-0 top-0 w-1/3 h-full border-r-[0.5px] p-line p-6">
-          <TechFrame
-            :strokeWidth="0"
-            :bottom-left="{ type: 'notch', size: '50%', depth: '24px', radius: '12px', orientation: 'vertical' }"
-            class="w-full h-full"
+          <!-- perspective 容器 + 卡片層：卡片以右緣為軸做 3D 翻開（由 index.vue 的 ScrollTrigger 驅動） -->
+          <div class="w-full h-full perspective-distant">
+            <div ref="characterCard" class="w-full h-full">
+              <TechFrame
+                :strokeWidth="0"
+                :bottom-left="{ type: 'notch', size: '50%', depth: '24px', radius: '12px', orientation: 'vertical' }"
+                class="w-full h-full"
+              >
+                <img :src="characterPic" alt="character" />
+              </TechFrame>
+            </div>
+          </div>
+        </div>
+        <div ref="aboutWrap" class="absolute flex flex-col items-end right-0 top-0 w-2/3">
+          <div
+            ref="nameWrap"
+            class="w-full border-b-[0.5px] p-line px-6 py-3 flex justify-end text-3xl md:text-4xl lg:text-5xl"
           >
-            <img :src="characterPic" alt="character" />
-          </TechFrame>
+            <!-- Block Reveal：下捲時白色橫條劃過後名字顯現（由 nameState 控制進退場） -->
+            <span
+              class="scroll-reveal"
+              :class="{ 'is-revealing': nameState === 'in', 'is-exiting': nameState === 'out' }"
+            >
+              <span class="scroll-reveal-text">JHIH-SYUN HU</span>
+            </span>
+          </div>
+          <article ref="aboutText" class="w-4/5 lg:w-3/5 text-sm p-6" v-html="aboutOutput"></article>
         </div>
       </main>
       <div
@@ -141,6 +175,52 @@
       &:after {
         animation: bar-wipe-out 0.8s cubic-bezier(0.7, 0, 0.3, 1) forwards;
         animation-delay: calc(var(--i) * 0.25s);
+      }
+    }
+  }
+
+  /* Block Reveal（捲動觸發版）：與 line-reveal 相同，但進場改由 class 觸發、非掛載即播。
+     初始為隱藏態（文字透明、橫條收合），下捲套 .is-revealing 進場、回捲套 .is-exiting 退場。 */
+  .scroll-reveal {
+    position: relative;
+    display: inline-block;
+    overflow: hidden;
+
+    &-text {
+      display: inline-block;
+      opacity: 0; /* 初始隱藏，等橫條劃過才顯現 */
+    }
+
+    &::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      transform: scaleX(0);
+      transform-origin: left;
+      background: var(--panel-fg, #fff);
+    }
+
+    /* 進場（下捲）：橫條由左而右劃過、經過後文字顯現 */
+    &.is-revealing {
+      .scroll-reveal-text {
+        animation: reveal-text 0.01s linear forwards;
+        animation-delay: 0.4s; /* 對應橫條完全蓋住文字的時點 */
+      }
+
+      &::after {
+        animation: bar-wipe 0.8s cubic-bezier(0.7, 0, 0.3, 1) forwards;
+      }
+    }
+
+    /* 退場（回捲）：橫條再劃過、經過的瞬間文字淡出 */
+    &.is-exiting {
+      .scroll-reveal-text {
+        opacity: 1;
+        animation: reveal-text-out 0.8s linear forwards;
+      }
+
+      &::after {
+        animation: bar-wipe-out 0.8s cubic-bezier(0.7, 0, 0.3, 1) forwards;
       }
     }
   }

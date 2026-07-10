@@ -17,7 +17,9 @@
     scrambleIn: () => void
     revealOut: () => void
     revealIn: () => void
-    $refs: { headerText: HTMLElement; characterWrap: HTMLElement }
+    aboutIn: () => void
+    aboutOut: () => void
+    $refs: { headerText: HTMLElement; characterWrap: HTMLElement; characterCard: HTMLElement }
   } | null>(null)
   let headerExited = false // 左上亂碼 + 右下 line-reveal 標題是否已退場（避免每個影格重複觸發）
 
@@ -45,85 +47,71 @@
     el.style.setProperty('--panel-line', `rgb(${fg} ${fg} ${fg} / 0.5)`) // 框線：前景色 50% 透明
   }
 
-  const tl = gsap.timeline()
+  // 依捲動進度處理：左上亂碼解散/還原、右下標題進退場，並在文字全透明後移出版面
+  const updateHeaderText = (self: { progress: number }) => {
+    // 開始下捲 → 亂碼解散成空字串、標題播 line-reveal 退場；捲回頂端 → 還原（各只觸發一次）
+    if (self.progress > 0.02 && !headerExited) {
+      headerExited = true
+      panelRef.value?.scrambleOut()
+      panelRef.value?.revealOut()
+      panelRef.value?.aboutIn() // 右側 nameWrap Block Reveal 顯現 + aboutText 解碼 profileText2
+    } else if (self.progress <= 0.02 && headerExited) {
+      headerExited = false
+      panelRef.value?.scrambleIn()
+      panelRef.value?.revealIn()
+      panelRef.value?.aboutOut() // 右側還原：nameWrap 退場 + aboutText 清空
+    }
+
+    // 依「實際渲染透明度」切換 display（讀當前值而非進度，避開 scrub 延遲殘影）：
+    // 全透明後設 display:none 不再佔版面，回捲可見時還原成預設 display。
+    const el = panelRef.value?.$refs.headerText
+    if (el) {
+      const opacity = Number(gsap.getProperty(el, 'opacity'))
+      el.style.display = opacity <= 0.01 ? 'none' : ''
+    }
+  }
+
+  let tl: gsap.core.Timeline | null = null
 
   onMounted(() => {
-    tl.to(bgWrap.value, {
-      // 縮成右下角的小圖（因為錨定 right/bottom，寬高縮小時會往右下收）
-      width: '350px', // pic ratio 7:4
-      height: '200px',
-      left: 'calc(33.3% + 12px)', // 右邊距 = 33.3% + Panel padding
-      bottom: '48px',
-      ease: 'none',
+    // 所有動畫共用同一段捲動範圍 → 用「單一 ScrollTrigger 驅動一條 timeline」，
+    // 各動畫以 position 0 同時開始、同步播放，scrollTrigger 設定只需寫一份。
+    tl = gsap.timeline({
+      defaults: { ease: 'none', duration: 1 },
       scrollTrigger: {
         trigger: root.value,
         start: 'top top',
         end: 'bottom bottom', // 捲到 root 底部時剛好播完
-        scrub: 0.5, // 讓縮放平滑跟隨捲動
+        scrub: 0.5, // 平滑跟隨捲動
         invalidateOnRefresh: true, // 視窗尺寸變更時重新計算
         onUpdate: (self) => {
-          updatePanelTheme(self) // 同一組捲動同步變更 Panel 配色
-          cornerProgress.value = self.progress // 同步讓背景大圖長出科技感切角
+          updatePanelTheme(self) // Panel 配色 白 → 黑
+          cornerProgress.value = self.progress // 背景大圖長出科技感切角
+          updateHeaderText(self) // 左上亂碼 / 右下標題進退場
         }
       }
     })
-      .to(
-        panelRef.value?.$refs.headerText,
-        {
-          opacity: 0,
-          ease: 'none',
-          scrollTrigger: {
-            trigger: root.value,
-            start: 'top top',
-            end: 'bottom bottom', // 捲到 root 底部時剛好播完
-            scrub: 0.5, // 讓縮放平滑跟隨捲動
-            invalidateOnRefresh: true, // 視窗尺寸變更時重新計算
-            onUpdate: (self) => {
-              // 開始下捲 → 左上亂碼解散成空字串、右下標題播 line-reveal 退場；
-              // 捲回頂端 → 兩者還原（各只觸發一次）
-              if (self.progress > 0.02 && !headerExited) {
-                headerExited = true
-                panelRef.value?.scrambleOut()
-                panelRef.value?.revealOut()
-              } else if (self.progress <= 0.02 && headerExited) {
-                headerExited = false
-                panelRef.value?.scrambleIn()
-                panelRef.value?.revealIn()
-              }
 
-              // 依「實際渲染透明度」切換 display（讀當前值而非捲動進度，避開 scrub 延遲造成的殘影）：
-              // 幾乎全透明時設 display:none，讓文字完全隱形後不再佔據版面、影響其他物件；
-              // 回捲重新變得可見時，還原成 CSS 預設的 display。
-              const el = panelRef.value?.$refs.headerText
-              if (el) {
-                const opacity = Number(gsap.getProperty(el, 'opacity'))
-                el.style.display = opacity <= 0.01 ? 'none' : ''
-              }
-            }
-          }
-        },
-        '<'
-      )
+    tl
+      // 背景大圖：縮成右下角小圖（錨定 right/bottom，寬高縮小時往右下收；pic ratio 7:4）
+      .to(bgWrap.value, { width: '350px', height: '200px', left: 'calc(33.3% + 12px)', bottom: '48px' }, 0)
+      // 左上 profile 文字：淡出
+      .to(panelRef.value?.$refs.headerText, { opacity: 0 }, 0)
+      // 角色欄整體淡入
+      .fromTo(panelRef.value?.$refs.characterWrap, { opacity: 0 }, { opacity: 1 }, 0)
+      // 角色卡片：以中心為軸翻轉進入
       .fromTo(
-        panelRef.value?.$refs.characterWrap,
-        { opacity: 0 },
-        {
-          opacity: 1,
-          ease: 'none',
-          scrollTrigger: {
-            trigger: root.value,
-            start: 'top top',
-            end: 'bottom bottom',
-            scrub: 0.5,
-            invalidateOnRefresh: true
-          }
-        }
+        panelRef.value?.$refs.characterCard,
+        { rotationY: -180, opacity: 0 },
+        { rotationY: 0, opacity: 1, transformOrigin: 'center' },
+        0
       )
+      .fromTo(panelRef.value?.$refs.aboutWrap, { opacity: 0 }, { opacity: 1 }, 0)
   })
 
   onBeforeUnmount(() => {
-    tl.scrollTrigger?.kill()
-    tl.kill()
+    tl?.scrollTrigger?.kill()
+    tl?.kill()
   })
 </script>
 

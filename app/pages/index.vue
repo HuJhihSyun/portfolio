@@ -1,5 +1,5 @@
 <script lang="ts" setup>
-  import { ref, onMounted, onBeforeUnmount } from 'vue'
+  import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
   import gsap from 'gsap'
   import { ScrollTrigger } from 'gsap/ScrollTrigger'
 
@@ -21,6 +21,19 @@
   } | null>(null)
   let headerExited = false // 左上亂碼 + 右下 line-reveal 標題是否已退場（避免每個影格重複觸發）
 
+  // 背景大圖的科技感切角進度（0=矩形 → 1=完整切角），由 ScrollTrigger onUpdate 驅動
+  const cornerProgress = ref(0)
+  // 各角切角大小隨進度成長（下捲越多、切角越明顯；px 固定，配合縮小後的小圖比例）
+  const bgCorners = computed(() => {
+    const p = cornerProgress.value
+    return {
+      topLeft: { type: 'round' as const, size: 18 * p },
+      topRight: { type: 'bevel' as const, size: 34 * p },
+      bottomRight: { type: 'round' as const, size: 18 * p },
+      bottomLeft: { type: 'notch' as const, size: 72 * p, depth: 22 * p, radius: 10 * p }
+    }
+  })
+
   // 依捲動進度把 Panel 的主題色由白補間到黑（設定 CSS 變數，會繼承進 Panel 內部）
   const updatePanelTheme = (self: { progress: number }) => {
     const el = panelWrap.value
@@ -41,7 +54,6 @@
       height: '200px',
       left: 'calc(33.3% + 12px)', // 右邊距 = 33.3% + Panel padding
       bottom: '48px',
-      borderRadius: '16px',
       ease: 'none',
       scrollTrigger: {
         trigger: root.value,
@@ -51,6 +63,7 @@
         invalidateOnRefresh: true, // 視窗尺寸變更時重新計算
         onUpdate: (self) => {
           updatePanelTheme(self) // 同一組捲動同步變更 Panel 配色
+          cornerProgress.value = self.progress // 同步讓背景大圖長出科技感切角
         }
       }
     })
@@ -120,14 +133,23 @@
       <Panel ref="panelRef" />
     </div>
 
-    <!-- 背景大圖：固定定位，往下捲時縮成右下角小圖 -->
+    <!-- 背景大圖：固定定位，往下捲時縮成右下角小圖，並逐漸長出科技感切角 -->
     <div ref="bgWrap" class="fixed right-0 bottom-0 w-screen h-dvh z-0 overflow-hidden perspective-[1000px]">
-      <img
-        :src="mainPic"
-        alt="main"
-        class="w-full h-full object-cover will-change-transform"
-        :style="{ transform: tiltStyle }"
-      />
+      <TechFrame
+        :strokeWidth="0"
+        :top-left="bgCorners.topLeft"
+        :top-right="bgCorners.topRight"
+        :bottom-right="bgCorners.bottomRight"
+        :bottom-left="bgCorners.bottomLeft"
+        class="w-full h-full"
+      >
+        <img
+          :src="mainPic"
+          alt="main"
+          class="w-full h-full object-cover will-change-transform"
+          :style="{ transform: tiltStyle }"
+        />
+      </TechFrame>
     </div>
 
     <!-- 製造捲動距離，讓 ScrollTrigger 有可捲動的範圍 -->

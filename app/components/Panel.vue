@@ -65,9 +65,13 @@
           </h2>
         </article>
         <div ref="characterWrap" class="absolute left-0 top-0 w-1/3 h-full border-r-[0.5px] p-line p-6">
-          <div class="w-full h-full rounded-2xl overflow-hidden">
-            <img :src="characterPic" alt="character" class="h-full w-full object-cover" />
-          </div>
+          <TechFrame
+            :strokeWidth="0"
+            :bottom-left="{ type: 'notch', size: '50%', depth: '24px', radius: '12px', orientation: 'vertical' }"
+            class="w-full h-full"
+          >
+            <img :src="characterPic" alt="character" />
+          </TechFrame>
         </div>
       </main>
       <div

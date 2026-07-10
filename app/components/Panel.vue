@@ -19,44 +19,17 @@
 
   const mainTitle = reactive([{ text: 'Code.' }, { text: 'Design.' }, { text: 'Interact.' }])
 
-  // step 切換狀態機：'one'（初始畫面） →（exit 動畫）→ 'two'（角色圖）
-  const phase = ref<'one' | 'two'>('one')
-  const exiting = ref(false) // step-1 正在播消失動畫
-  let swapTimer: ReturnType<typeof setTimeout> | null = null
+  // 由 index.vue 的 ScrollTrigger 觸發：左上 article 的亂碼往空字串解散 / 還原成原文
+  const scrambleOut = () => setText('')
+  const scrambleIn = () => setText(profileText)
 
-  // 進度越過門檻 → 播 step-1 消失動畫，動畫結束後換成 step-2
-  const goStep2 = () => {
-    if (phase.value !== 'one' || exiting.value) return
-    exiting.value = true
-    setText('') // 左上 article：Text Scramble 反向消失（往空字串亂數化）
-    // 右下 article 的 Block Reveal 消失由 .is-exiting class 觸發（見 <style>）
-    swapTimer = setTimeout(() => {
-      phase.value = 'two' // 移除 step-1、掛載 step-2（step-2 進場動畫在 CSS）
-      exiting.value = false
-    }, 500)
-  }
-
-  // 往回捲動 → 還原成 step-1，並重播 Text Scramble 進場
-  const goStep1 = () => {
-    if (phase.value !== 'two') return
-    if (swapTimer) clearTimeout(swapTimer)
-    phase.value = 'one'
-    exiting.value = false
-    nextTick(() => setText(profileText))
-  }
-
-  // 由 index.vue 的 ScrollTrigger onUpdate 傳入捲動進度（0~1）
-  const onScrollProgress = (p: number) => {
-    if (p > 0.45) goStep2()
-    else if (p < 0.4) goStep1()
-  }
-
-  onBeforeUnmount(() => {
-    if (swapTimer) clearTimeout(swapTimer)
-  })
+  // 右下 line-reveal 標題的退場狀態：true 時套用 .is-exiting（橫條再次劃過、文字淡出消失）
+  const exiting = ref(false)
+  const revealOut = () => (exiting.value = true) // 下捲：播退場動畫
+  const revealIn = () => (exiting.value = false) // 回捲：移除 class，還原成進場後的可見狀態
 
   // 暴露給父層（index.vue）呼叫
-  defineExpose({ onScrollProgress })
+  defineExpose({ scrambleOut, scrambleIn, revealOut, revealIn })
 </script>
 
 <template>
@@ -74,28 +47,26 @@
     </div>
     <div class="middle w-full h-[calc(100dvh-88px)] flex justify-center items-center">
       <main class="relative w-full h-full overflow-hidden">
-        <div v-if="phase === 'one'" class="step-1 absolute inset-0">
-          <article class="w-1/2 text-sm p-6" v-html="profileOutput"></article>
-          <article
-            class="absolute flex flex-col items-end right-0 bottom-0 w-1/2 text-6xl md:text-7xl lg:text-8xl text-right p-6 leading-none"
+        <article ref="headerText" class="w-1/2 text-sm p-6" v-html="profileOutput"></article>
+        <article
+          class="absolute flex flex-col items-end right-0 bottom-0 w-1/2 text-6xl md:text-7xl lg:text-8xl text-right p-6 leading-none"
+        >
+          <h2
+            v-for="(item, index) in mainTitle"
+            :key="item.text"
+            class="line-reveal"
+            :class="{ 'is-exiting': exiting }"
+            :style="`--i: ${index}`"
           >
-            <h2
-              v-for="(item, index) in mainTitle"
-              :key="item.text"
-              class="line-reveal"
-              :class="{ 'is-exiting': exiting }"
-              :style="`--i: ${index}`"
+            <span class="line-reveal-text"
+              ><sup class="text-xs md:text-sm lg:text-base">0{{ index + 1 }}</sup
+              >{{ item.text }}</span
             >
-              <span class="line-reveal-text"
-                ><sup class="text-xs md:text-sm lg:text-base">0{{ index + 1 }}</sup
-                >{{ item.text }}</span
-              >
-            </h2>
-          </article>
-        </div>
-        <div v-else class="step-2 absolute inset-0 flex">
-          <div class="border-r-[0.5px] p-line p-6">
-            <img :src="characterPic" alt="character" class="h-full w-auto object-contain rounded-2xl" />
+          </h2>
+        </article>
+        <div ref="characterWrap" class="absolute left-0 top-0 w-1/3 h-full border-r-[0.5px] p-line p-6">
+          <div class="w-full h-full rounded-2xl overflow-hidden">
+            <img :src="characterPic" alt="character" class="h-full w-full object-cover" />
           </div>
         </div>
       </main>
@@ -154,7 +125,7 @@
       animation-delay: calc(var(--i) * 0.25s);
     }
 
-    /* 消失：橫條再次劃過，經過時文字淡出（Block Reveal 反向） */
+    /* 退場（下捲觸發）：橫條再次由左而右劃過，經過的瞬間文字淡出消失（Block Reveal 反向） */
     &.is-exiting {
       .line-reveal-text {
         opacity: 1;
@@ -162,8 +133,9 @@
         animation-delay: calc(var(--i) * 0.25s);
       }
 
+      /* 用獨立的 bar-wipe-out（動作同 bar-wipe），確保 animation-name 改變、退場橫條會重播 */
       &:after {
-        animation: bar-wipe 0.8s cubic-bezier(0.7, 0, 0.3, 1) forwards;
+        animation: bar-wipe-out 0.8s cubic-bezier(0.7, 0, 0.3, 1) forwards;
         animation-delay: calc(var(--i) * 0.25s);
       }
     }
@@ -191,6 +163,25 @@
   @keyframes reveal-text {
     to {
       opacity: 1;
+    }
+  }
+
+  /* 退場橫條：與 bar-wipe 動作相同，僅為了用不同 animation-name 強制重播 */
+  @keyframes bar-wipe-out {
+    0% {
+      transform: scaleX(0);
+      transform-origin: left;
+    }
+    50% {
+      transform: scaleX(1);
+      transform-origin: left;
+    }
+    50.01% {
+      transform-origin: right;
+    }
+    100% {
+      transform: scaleX(0);
+      transform-origin: right;
     }
   }
 

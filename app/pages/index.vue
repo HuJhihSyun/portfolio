@@ -13,13 +13,19 @@
   const bgWrap = ref<HTMLElement | null>(null)
   const panelWrap = ref<HTMLElement | null>(null)
   const panelRef = ref<{
+    enter: () => void
     scrambleOut: () => void
     scrambleIn: () => void
     revealOut: () => void
     revealIn: () => void
     aboutIn: () => void
     aboutOut: () => void
-    $refs: { headerText: HTMLElement; characterWrap: HTMLElement; characterCard: HTMLElement }
+    $refs: {
+      headerText: HTMLElement
+      characterWrap: HTMLElement
+      characterCard: HTMLElement
+      aboutWrap: HTMLElement
+    }
   } | null>(null)
   let headerExited = false // 左上亂碼 + 右下 line-reveal 標題是否已退場（避免每個影格重複觸發）
 
@@ -71,9 +77,11 @@
     }
   }
 
+  const LOADING_DELAY = 3000 // 開場 loading 動畫時長（ms），捲動動畫延遲同樣時間再建立
   let tl: gsap.core.Timeline | null = null
+  let startTimer: ReturnType<typeof setTimeout> | null = null
 
-  onMounted(() => {
+  const buildTimeline = () => {
     // 所有動畫共用同一段捲動範圍 → 用「單一 ScrollTrigger 驅動一條 timeline」，
     // 各動畫以 position 0 同時開始、同步播放，scrollTrigger 設定只需寫一份。
     tl = gsap.timeline({
@@ -107,9 +115,31 @@
         0
       )
       .fromTo(panelRef.value?.$refs.aboutWrap, { opacity: 0 }, { opacity: 1 }, 0)
+  }
+
+  onMounted(() => {
+    // 重新整理時強制回到頁面最頂端（雙保險，搭配 scroll-restoration.client 插件），
+    // 避免捲動停在中間時 ScrollTrigger 從中間區段起算
+    window.scrollTo(0, 0)
+
+    // 先立即把「下滑才出現」的元素設為起始隱藏態（progress 0 的樣子）。
+    // 否則 loading 遮罩淡出（約 3s）到捲動動畫建立（約 3.3s）之間的空窗期，
+    // 這些元素會以 CSS 預設的可見態短暫浮現（角色卡片、右側區塊與其邊線），再被 timeline 設回隱藏而閃現。
+    const refs = panelRef.value?.$refs
+    if (refs) {
+      gsap.set([refs.characterWrap, refs.aboutWrap], { opacity: 0 })
+      gsap.set(refs.characterCard, { opacity: 0, rotationY: -180, transformOrigin: 'center' })
+    }
+
+    // 開場 loading 結束（約 3 秒）後：先播主頁面進場（左上解碼 + 右下標題），再建立捲動動畫
+    startTimer = setTimeout(() => {
+      panelRef.value?.enter()
+      buildTimeline()
+    }, LOADING_DELAY)
   })
 
   onBeforeUnmount(() => {
+    if (startTimer) clearTimeout(startTimer)
     tl?.scrollTrigger?.kill()
     tl?.kill()
   })

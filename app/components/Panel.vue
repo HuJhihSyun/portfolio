@@ -16,11 +16,18 @@
   // aboutText 專用的第二組 Text Scramble（顯示 profileText2）；初始為空，下捲才解碼呈現
   const { output: aboutOutput, setText: setAboutText } = useTextScramble({ duration: 40 })
 
-  onMounted(() => {
-    setText(profileText)
-  })
+  // 角色卡片的 hover 3D 傾斜（套在 TechFrame 內的 img，避免與卡片翻開的 gsap transform 衝突）
+  const { tiltStyle: characterTilt } = useTilt({ max: 5, scale: 1.06 })
 
   const mainTitle = reactive([{ text: 'Code.' }, { text: 'Design.' }, { text: 'Interact.' }])
+
+  // 開場進場狀態：初始隱藏（左上文字為空、右下標題不播 line-reveal）。
+  // 等 index.vue 的開場 loading 結束後呼叫 enter() 才播進場，才能與 loading 正常銜接。
+  const entered = ref(false)
+  const enter = () => {
+    entered.value = true
+    setText(profileText) // 左上 profile 文字亂數解碼進場
+  }
 
   // 由 index.vue 的 ScrollTrigger 觸發：左上 article 的亂碼往空字串解散 / 還原成原文
   const scrambleOut = () => setText('')
@@ -43,7 +50,7 @@
   }
 
   // 暴露給父層（index.vue）呼叫
-  defineExpose({ scrambleOut, scrambleIn, revealOut, revealIn, aboutIn, aboutOut })
+  defineExpose({ enter, scrambleOut, scrambleIn, revealOut, revealIn, aboutIn, aboutOut })
 </script>
 
 <template>
@@ -69,7 +76,7 @@
             v-for="(item, index) in mainTitle"
             :key="item.text"
             class="line-reveal"
-            :class="{ 'is-exiting': exiting }"
+            :class="{ 'is-entering': entered, 'is-exiting': exiting }"
             :style="`--i: ${index}`"
           >
             <span class="line-reveal-text"
@@ -87,7 +94,12 @@
                 :bottom-left="{ type: 'notch', size: '50%', depth: '24px', radius: '12px', orientation: 'vertical' }"
                 class="w-full h-full"
               >
-                <img :src="characterPic" alt="character" />
+                <img
+                  :src="characterPic"
+                  alt="character"
+                  class="will-change-transform"
+                  :style="{ transform: characterTilt }"
+                />
               </TechFrame>
             </div>
           </div>
@@ -146,10 +158,9 @@
     position: relative;
     display: inline-block;
 
+    /* 預設隱藏：文字透明、橫條收合，等 enter()（loading 結束後）才播進場 */
     &-text {
       opacity: 0;
-      animation: reveal-text 0.01s linear forwards; /* 依 --i 錯開每一行的時間（0.4s 對應橫條完全蓋住文字的時點） */
-      animation-delay: calc(var(--i) * 0.25s + 0.4s);
     }
 
     &:after {
@@ -159,8 +170,19 @@
       transform: scaleX(0);
       transform-origin: left;
       background: var(--panel-fg, #fff);
-      animation: bar-wipe 0.8s cubic-bezier(0.7, 0, 0.3, 1) forwards;
-      animation-delay: calc(var(--i) * 0.25s);
+    }
+
+    /* 進場（開場 loading 結束後由 enter() 觸發）：橫條由左而右劃過、經過後文字顯現 */
+    &.is-entering {
+      .line-reveal-text {
+        animation: reveal-text 0.01s linear forwards; /* 依 --i 錯開每一行的時間（0.4s 對應橫條完全蓋住文字的時點） */
+        animation-delay: calc(var(--i) * 0.25s + 0.4s);
+      }
+
+      &:after {
+        animation: bar-wipe 0.8s cubic-bezier(0.7, 0, 0.3, 1) forwards;
+        animation-delay: calc(var(--i) * 0.25s);
+      }
     }
 
     /* 退場（下捲觸發）：橫條再次由左而右劃過，經過的瞬間文字淡出消失（Block Reveal 反向） */

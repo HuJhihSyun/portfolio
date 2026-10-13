@@ -4,6 +4,8 @@
   import { ScrollTrigger } from 'gsap/ScrollTrigger'
 
   import mainPic from '@/assets/images/main.png'
+  // 第三幕滿版背景（TODO: 換成專屬的第三幕視覺；目前暫用主視覺）
+  import stagePic from '@/assets/images/main.png'
 
   gsap.registerPlugin(ScrollTrigger)
 
@@ -11,6 +13,10 @@
 
   const root = ref<HTMLElement | null>(null)
   const bgWrap = ref<HTMLElement | null>(null)
+  const bgCard = ref<HTMLElement | null>(null)
+  const bgFront = ref<HTMLElement | null>(null)
+  const bgBack = ref<HTMLElement | null>(null)
+  const bgShade = ref<HTMLElement | null>(null)
   const panelWrap = ref<HTMLElement | null>(null)
   const panelRef = ref<{
     enter: () => void
@@ -20,6 +26,11 @@
     revealIn: () => void
     aboutIn: () => void
     aboutOut: () => void
+    skills: {
+      addTo: (tl: gsap.core.Timeline, at: number) => void
+      enter: () => void
+      leave: () => void
+    } | null
     $refs: {
       headerText: HTMLElement
       characterWrap: HTMLElement
@@ -27,9 +38,15 @@
       aboutWrap: HTMLElement
     }
   } | null>(null)
-  let headerExited = false // 左上亂碼 + 右下 line-reveal 標題是否已退場（避免每個影格重複觸發）
 
-  // 背景大圖的科技感切角進度（0=矩形 → 1=完整切角），由 ScrollTrigger onUpdate 驅動
+  // 主 timeline 的分段（timeline 時間單位；實際捲動距離依比例分配到 root 的高度）
+  const ACT2 = 1 // 第二幕：大圖縮成小圖、角色卡片翻入
+  const ACT3 = ACT2 + 0.3 // 第三幕起點（第二幕播完後稍作停留）
+  const FLIP = 1.2 // 小圖立體翻轉 + 放大至滿版的長度
+  const FLIP_MID = ACT3 + FLIP / 2 // 翻到 90°（側面）的時間點：正反面在此切換
+  const SKILLS = ACT3 + FLIP // 技能矩陣 / 時間軸進場起點
+
+  // 背景大圖的科技感切角進度（0=矩形 → 1=完整切角），由主 timeline 補間：第二幕長出、第三幕滿版時收回
   const cornerProgress = ref(0)
   // 各角切角大小隨進度成長（下捲越多、切角越明顯；px 固定，配合縮小後的小圖比例）
   const bgCorners = computed(() => {
@@ -42,35 +59,53 @@
     }
   })
 
-  // 依捲動進度把 Panel 的主題色由白補間到黑（設定 CSS 變數，會繼承進 Panel 內部）
-  const updatePanelTheme = (self: { progress: number }) => {
+  // Panel 主題色進度（0=白字 → 1=黑字），由主 timeline 補間：第二幕白→黑、第三幕蓋上滿版圖時黑→白
+  const theme = { v: 0 }
+  const applyPanelTheme = () => {
     const el = panelWrap.value
     if (!el) return
-    const fg = Math.round(255 * (1 - self.progress)) // 前景：白(255) → 黑(0)
+    const fg = Math.round(255 * (1 - theme.v)) // 前景：白(255) → 黑(0)
     const bg = 255 - fg // 背景：黑(0) → 白(255)
     el.style.setProperty('--panel-fg', `rgb(${fg} ${fg} ${fg})`)
     el.style.setProperty('--panel-bg', `rgb(${bg} ${bg} ${bg})`)
     el.style.setProperty('--panel-line', `rgb(${fg} ${fg} ${fg} / 0.5)`) // 框線：前景色 50% 透明
   }
 
-  // 依捲動進度處理：左上亂碼解散/還原、右下標題進退場，並在文字全透明後移出版面
-  const updateHeaderText = (self: { progress: number }) => {
-    // 開始下捲 → 亂碼解散成空字串、標題播 line-reveal 退場；捲回頂端 → 還原（各只觸發一次）
-    if (self.progress > 0.02 && !headerExited) {
-      headerExited = true
-      panelRef.value?.scrambleOut()
-      panelRef.value?.revealOut()
-      panelRef.value?.aboutIn() // 右側 nameWrap Block Reveal 顯現 + aboutText 解碼 profileText2
-    } else if (self.progress <= 0.02 && headerExited) {
-      headerExited = false
-      panelRef.value?.scrambleIn()
-      panelRef.value?.revealIn()
-      panelRef.value?.aboutOut() // 右側還原：nameWrap 退場 + aboutText 清空
-    }
+  // 捲動門檻的開關狀態：依 timeline 時間推導各區塊「應有的狀態」，只在狀態改變時觸發一次。
+  // （由狀態推導而非逐一比對門檻，快速來回捲過多個門檻時最終狀態仍正確）
+  const gates: Record<string, boolean> = {}
+  const syncGate = (key: string, active: boolean, onIn: () => void, onOut: () => void) => {
+    if (!!gates[key] === active) return
+    gates[key] = active
+    if (active) onIn()
+    else onOut()
+  }
+
+  // 依捲動位置（timeline 時間）處理以 class / 亂碼驅動、非 scrub 的進退場
+  const updateGates = (time: number) => {
+    const panel = panelRef.value
+    if (!panel) return
+
+    // 開始下捲 → 左上亂碼解散、右下標題 line-reveal 退場；捲回頂端 → 還原
+    syncGate(
+      'header',
+      time > 0.02,
+      () => (panel.scrambleOut(), panel.revealOut()),
+      () => (panel.scrambleIn(), panel.revealIn())
+    )
+    // 右側 nameWrap Block Reveal + aboutText 解碼：只在第二幕期間顯示
+    syncGate('about', time > 0.02 && time < ACT3 + 0.05, panel.aboutIn, panel.aboutOut)
+    // 第三幕標題亂碼解碼
+    syncGate(
+      'skills',
+      time > SKILLS,
+      () => panel.skills?.enter(),
+      () => panel.skills?.leave()
+    )
 
     // 依「實際渲染透明度」切換 display（讀當前值而非進度，避開 scrub 延遲殘影）：
     // 全透明後設 display:none 不再佔版面，回捲可見時還原成預設 display。
-    const el = panelRef.value?.$refs.headerText
+    const el = panel.$refs.headerText
     if (el) {
       const opacity = Number(gsap.getProperty(el, 'opacity'))
       el.style.display = opacity <= 0.01 ? 'none' : ''
@@ -82,8 +117,9 @@
   let startTimer: ReturnType<typeof setTimeout> | null = null
 
   const buildTimeline = () => {
-    // 所有動畫共用同一段捲動範圍 → 用「單一 ScrollTrigger 驅動一條 timeline」，
-    // 各動畫以 position 0 同時開始、同步播放，scrollTrigger 設定只需寫一份。
+    const refs = panelRef.value?.$refs
+
+    // 所有動畫由「單一 ScrollTrigger 驅動一條主 timeline」，依分段時間排列，scrollTrigger 設定只需寫一份
     tl = gsap.timeline({
       defaults: { ease: 'none', duration: 1 },
       scrollTrigger: {
@@ -92,29 +128,62 @@
         end: 'bottom bottom', // 捲到 root 底部時剛好播完
         scrub: 0.5, // 平滑跟隨捲動
         invalidateOnRefresh: true, // 視窗尺寸變更時重新計算
-        onUpdate: (self) => {
-          updatePanelTheme(self) // Panel 配色 白 → 黑
-          cornerProgress.value = self.progress // 背景大圖長出科技感切角
-          updateHeaderText(self) // 左上亂碼 / 右下標題進退場
-        }
+        onUpdate: (self) => updateGates(self.progress * (tl?.duration() ?? 0))
       }
     })
 
     tl
+      // ── 第二幕 ──
       // 背景大圖：縮成右下角小圖（錨定 right/bottom，寬高縮小時往右下收；pic ratio 7:4）
       .to(bgWrap.value, { width: '350px', height: '200px', left: 'calc(33.3% + 12px)', bottom: '48px' }, 0)
+      // 背景大圖長出科技感切角、Panel 配色 白 → 黑
+      .to(cornerProgress, { value: 1 }, 0)
+      .to(theme, { v: 1, onUpdate: applyPanelTheme }, 0)
       // 左上 profile 文字：淡出
-      .to(panelRef.value?.$refs.headerText, { opacity: 0 }, 0)
+      .to(refs?.headerText, { opacity: 0 }, 0)
       // 角色欄整體淡入
-      .fromTo(panelRef.value?.$refs.characterWrap, { opacity: 0 }, { opacity: 1 }, 0)
+      .fromTo(refs?.characterWrap, { opacity: 0 }, { opacity: 1 }, 0)
       // 角色卡片：以中心為軸翻轉進入
       .fromTo(
-        panelRef.value?.$refs.characterCard,
+        refs?.characterCard,
         { rotationY: -180, opacity: 0 },
         { rotationY: 0, opacity: 1, transformOrigin: 'center' },
         0
       )
-      .fromTo(panelRef.value?.$refs.aboutWrap, { opacity: 0 }, { opacity: 1 }, 0)
+      .fromTo(refs?.aboutWrap, { opacity: 0 }, { opacity: 1 }, 0)
+
+      // ── 第三幕：第二幕內容退場 ──
+      // 角色卡片沿同方向繼續翻出、角色欄與右側區塊淡出
+      .to(refs?.characterCard, { rotationY: 180, opacity: 0, duration: 0.6 }, ACT3)
+      .to([refs?.characterWrap, refs?.aboutWrap], { opacity: 0, duration: 0.5 }, ACT3)
+
+      // ── 第三幕：小圖立體翻轉 + 放大成滿版背景 ──
+      .to(
+        bgWrap.value,
+        {
+          width: () => window.innerWidth,
+          height: () => window.innerHeight,
+          left: 0,
+          bottom: 0,
+          duration: FLIP,
+          ease: 'power2.inOut'
+        },
+        ACT3
+      )
+      .to(bgCard.value, { rotationY: 180, duration: FLIP, ease: 'power2.inOut' }, ACT3)
+      // 翻到側面（90°）的瞬間正反面互換：正面（小圖）隱藏、背面（第三幕背景）顯示
+      .set(bgFront.value, { autoAlpha: 0 }, FLIP_MID)
+      .set(bgBack.value, { autoAlpha: 1 }, FLIP_MID)
+      // 後半段：切角收回成滿版矩形、Panel 配色 黑 → 白、背景壓暗讓文字可讀
+      .to(cornerProgress, { value: 0, duration: FLIP / 2 }, FLIP_MID)
+      .to(theme, { v: 0, duration: FLIP / 2, onUpdate: applyPanelTheme }, FLIP_MID)
+      .fromTo(bgShade.value, { opacity: 0 }, { opacity: 1, duration: FLIP / 2 }, FLIP_MID)
+
+    // ── 第三幕：技能矩陣 + 時間軸進場 ──
+    panelRef.value?.skills?.addTo(tl, SKILLS)
+
+    // 結尾停留，讓第三幕內容完整呈現後還有一段捲動空間
+    tl.to({}, { duration: 0.4 })
   }
 
   onMounted(() => {
@@ -151,26 +220,56 @@
       <Panel ref="panelRef" />
     </div>
 
-    <!-- 背景大圖：固定定位，往下捲時縮成右下角小圖，並逐漸長出科技感切角 -->
-    <div ref="bgWrap" class="fixed right-0 bottom-0 w-screen h-dvh z-0 overflow-hidden perspective-[1000px]">
-      <TechFrame
-        :strokeWidth="0"
-        :top-left="bgCorners.topLeft"
-        :top-right="bgCorners.topRight"
-        :bottom-right="bgCorners.bottomRight"
-        :bottom-left="bgCorners.bottomLeft"
-        class="w-full h-full"
-      >
-        <img
-          :src="mainPic"
-          alt="main"
-          class="w-full h-full object-cover will-change-transform"
-          :style="{ transform: tiltStyle }"
-        />
-      </TechFrame>
+    <!-- 背景大圖：固定定位，往下捲時縮成右下角小圖並長出科技感切角（第二幕），
+         再以 Y 軸立體翻轉、放大成滿版背景（第三幕）。不設 overflow-hidden，避免翻轉時透視投影被裁切 -->
+    <div ref="bgWrap" class="fixed right-0 bottom-0 w-screen h-dvh z-0 perspective-[1200px]">
+      <!-- 翻轉卡片：整張以中心為軸 rotateY 0 → 180° -->
+      <div ref="bgCard" class="relative w-full h-full transform-3d">
+        <!-- 正面：第一、二幕的主視覺 -->
+        <div ref="bgFront" class="absolute inset-0">
+          <TechFrame
+            :strokeWidth="0"
+            :top-left="bgCorners.topLeft"
+            :top-right="bgCorners.topRight"
+            :bottom-right="bgCorners.bottomRight"
+            :bottom-left="bgCorners.bottomLeft"
+            class="w-full h-full"
+          >
+            <img
+              :src="mainPic"
+              alt="main"
+              class="w-full h-full object-cover will-change-transform"
+              :style="{ transform: tiltStyle }"
+            />
+          </TechFrame>
+        </div>
+        <!-- 背面：第三幕滿版背景（預先翻 180°，卡片翻完後正好轉正；翻到側面前保持隱藏） -->
+        <div ref="bgBack" class="absolute inset-0 rotate-y-180 invisible opacity-0">
+          <TechFrame
+            :strokeWidth="0"
+            :top-left="bgCorners.topLeft"
+            :top-right="bgCorners.topRight"
+            :bottom-right="bgCorners.bottomRight"
+            :bottom-left="bgCorners.bottomLeft"
+            class="w-full h-full"
+          >
+            <img
+              :src="stagePic"
+              alt="skills background"
+              class="w-full h-full object-cover will-change-transform"
+              :style="{ transform: tiltStyle }"
+            />
+            <!-- 壓暗遮罩：讓第三幕白字可讀 -->
+            <div
+              ref="bgShade"
+              class="absolute inset-0 bg-linear-to-r from-black/75 via-black/55 to-black/35 opacity-0"
+            ></div>
+          </TechFrame>
+        </div>
+      </div>
     </div>
 
-    <!-- 製造捲動距離，讓 ScrollTrigger 有可捲動的範圍 -->
-    <section class="relative z-10 h-[150vh] pointer-events-none"></section>
+    <!-- 製造捲動距離，讓 ScrollTrigger 有可捲動的範圍（各幕長度依主 timeline 分段比例分配） -->
+    <section class="relative z-10 h-[300vh] pointer-events-none"></section>
   </div>
 </template>

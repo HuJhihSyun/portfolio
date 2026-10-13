@@ -1,5 +1,6 @@
 <script setup lang="ts">
   import { ref, reactive, nextTick, onMounted, onBeforeUnmount } from 'vue'
+  import type gsap from 'gsap'
   import characterPic from '@/assets/images/character.jpg'
 
   const menuList = ref<{ label: string }[]>([
@@ -49,8 +50,15 @@
     setAboutText('') // aboutText 亂數解散成空
   }
 
+  // 第三幕：技能矩陣 + 時間軸（捲動補間由 index.vue 的主 timeline 透過 skills.addTo() 接入）
+  const skills = ref<{
+    addTo: (tl: gsap.core.Timeline, at: number) => void
+    enter: () => void
+    leave: () => void
+  } | null>(null)
+
   // 暴露給父層（index.vue）呼叫
-  defineExpose({ enter, scrambleOut, scrambleIn, revealOut, revealIn, aboutIn, aboutOut })
+  defineExpose({ enter, scrambleOut, scrambleIn, revealOut, revealIn, aboutIn, aboutOut, skills })
 </script>
 
 <template>
@@ -119,6 +127,7 @@
           </div>
           <article ref="aboutText" class="w-4/5 lg:w-3/5 text-sm p-6" v-html="aboutOutput"></article>
         </div>
+        <SkillsBoard ref="skills" />
       </main>
       <div
         class="p-line h-full text-xs px-6 py-3 flex justify-center items-center whitespace-nowrap border-l-[0.5px] w-14"

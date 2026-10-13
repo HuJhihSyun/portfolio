@@ -62,23 +62,34 @@
 </script>
 
 <template>
-  <div class="panel fixed w-[calc(100vw-48px)] h-[calc(100dvh-48px)] border-[0.5px] rounded-xl overflow-hidden">
-    <div class="p-line top flex justify-center items-center border-b-[0.5px]">
-      <span class="panel-chip text-xs font-bold pl-6 pr-7 py-3 whitespace-nowrap clip-br-bevel">My Portfolio</span>
-      <nav class="w-full flex justify-center items-center text-xs px-6 py-3">
+  <!-- 行動版（< md）外框內距縮為 12px、圓角縮小；中段改以 flex-1 填滿頂列以外的高度 -->
+  <div
+    class="panel fixed flex flex-col w-[calc(100vw-24px)] h-[calc(100dvh-24px)] md:w-[calc(100vw-48px)] md:h-[calc(100dvh-48px)] border-[0.5px] rounded-lg md:rounded-xl overflow-hidden"
+  >
+    <div class="p-line top flex justify-between md:justify-center items-center border-b-[0.5px]">
+      <span class="panel-chip text-xs font-bold pl-4 pr-5 md:pl-6 md:pr-7 py-3 whitespace-nowrap clip-br-bevel"
+        >My Portfolio</span
+      >
+      <!-- 行動版寬度不足以放下選單，先隱藏（待選單有實際連結後再改為漢堡選單） -->
+      <nav class="hidden md:flex w-full justify-center items-center text-xs px-6 py-3">
         <ul class="flex justify-center items-center gap-6 lg:gap-8 text-xs">
           <li v-for="item in menuList" :key="item.label">
             {{ item.label }}
           </li>
         </ul>
       </nav>
-      <span class="p-line text-xs px-6 py-3 whitespace-nowrap border-l-[0.5px] w-14">Z</span>
+      <span class="p-line text-xs text-center py-3 whitespace-nowrap border-l-[0.5px] w-10 md:w-14">Z</span>
     </div>
-    <div class="middle w-full h-[calc(100dvh-88px)] flex justify-center items-center">
+    <div class="middle w-full flex-1 min-h-0 flex justify-center items-center">
       <main class="relative w-full h-full overflow-hidden">
-        <article ref="headerText" class="w-1/2 text-sm p-6" v-html="profileOutput"></article>
+        <!-- 第一幕：行動版文字與標題改為滿寬，上下分置避免重疊 -->
         <article
-          class="absolute flex flex-col items-end right-0 bottom-0 w-1/2 text-6xl md:text-7xl lg:text-8xl text-right p-6 leading-none"
+          ref="headerText"
+          class="w-full md:w-1/2 leading-relaxed text-sm md:leading-normal p-4 md:p-6"
+          v-html="profileOutput"
+        ></article>
+        <article
+          class="absolute flex flex-col items-end right-0 bottom-0 w-full md:w-1/2 text-5xl md:text-7xl lg:text-8xl [@media(max-height:500px)]:text-5xl text-right p-4 md:p-6 leading-none"
         >
           <h2
             v-for="(item, index) in mainTitle"
@@ -93,7 +104,11 @@
             >
           </h2>
         </article>
-        <div ref="characterWrap" class="absolute left-0 top-0 w-1/3 h-full border-r-[0.5px] p-line p-6">
+        <!-- 第二幕角色欄：行動版置於左下（佔下方 58%，矮螢幕 45% 讓出空間給內文），桌機版為左側 1/3 滿高 -->
+        <div
+          ref="characterWrap"
+          class="absolute left-0 bottom-0 w-1/2 h-[58%] max-md:[@media(max-height:640px)]:h-[45%] border-t-[0.5px] border-r-[0.5px] p-line p-4 md:top-0 md:w-1/3 md:h-full md:border-t-0 md:p-6"
+        >
           <!-- perspective 容器 + 卡片層：卡片以右緣為軸做 3D 翻開（由 index.vue 的 ScrollTrigger 驅動） -->
           <div class="w-full h-full perspective-distant">
             <div ref="characterCard" class="w-full h-full">
@@ -112,10 +127,11 @@
             </div>
           </div>
         </div>
-        <div ref="aboutWrap" class="absolute flex flex-col items-end right-0 top-0 w-2/3">
+        <!-- 第二幕右側區塊：行動版為上半部滿寬，桌機版為右側 2/3 -->
+        <div ref="aboutWrap" class="absolute flex flex-col items-end right-0 top-0 w-full md:w-2/3">
           <div
             ref="nameWrap"
-            class="w-full border-b-[0.5px] p-line px-6 py-3 flex justify-end text-3xl md:text-4xl lg:text-5xl"
+            class="w-full border-b-[0.5px] p-line px-4 md:px-6 py-3 flex justify-end text-2xl md:text-4xl lg:text-5xl"
           >
             <!-- Block Reveal：下捲時白色橫條劃過後名字顯現（由 nameState 控制進退場） -->
             <span
@@ -125,12 +141,21 @@
               <span class="scroll-reveal-text">JHIH-SYUN HU</span>
             </span>
           </div>
-          <article ref="aboutText" class="w-4/5 lg:w-3/5 text-sm p-6" v-html="aboutOutput"></article>
+          <article
+            ref="aboutText"
+            class="w-full md:w-4/5 lg:w-3/5 leading-[1.6] text-sm md:leading-normal p-4 md:p-6"
+            v-html="aboutOutput"
+          ></article>
         </div>
+        <!-- 第二幕背景小圖的落點（不可見的定位參考）：index.vue 量測此元素的位置與尺寸，把背景大圖縮放到這裡。行動版為右下直式卡片，桌機版對齊右側內文、350×200 橫式 -->
+        <div
+          ref="bgSlot"
+          class="invisible absolute pointer-events-none right-4 bottom-4 w-[calc(50%-32px)] aspect-3/4 md:right-auto md:left-[calc(100%/3+24px)] md:bottom-6 md:w-[350px] md:h-[200px] md:aspect-auto"
+        ></div>
         <SkillsBoard ref="skills" />
       </main>
       <div
-        class="p-line h-full text-xs px-6 py-3 flex justify-center items-center whitespace-nowrap border-l-[0.5px] w-14"
+        class="p-line h-full text-xs md:px-6 py-3 flex justify-center items-center whitespace-nowrap border-l-[0.5px] w-10 md:w-14"
       >
         <span class="text-xs font-normal [writing-mode:vertical-rl]">Side Project by Syun</span>
       </div>

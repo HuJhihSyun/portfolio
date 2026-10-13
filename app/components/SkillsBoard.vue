@@ -95,13 +95,16 @@
   const { output: headingOutput, setText } = useTextScramble({ duration: 40 })
 
   const root = ref<HTMLElement | null>(null)
+  const content = ref<HTMLElement | null>(null)
   const groupEls = ref<HTMLElement[]>([])
   const fillEls = ref<HTMLElement[]>([])
   const lineEl = ref<HTMLElement | null>(null)
   const stepEls = ref<HTMLElement[]>([])
 
-  // 把本幕的捲動補間接到主 timeline 的 at 位置（scrub 驅動，可正反向播放）
-  const addTo = (tl: gsap.core.Timeline, at: number) => {
+  // 把本幕的捲動補間接到主 timeline 的 at 位置（scrub 驅動，可正反向播放）。
+  // 行動版內容（技能 + 時間軸）高於一個畫面，改為單欄排列並隨捲動上移，時間軸節點在捲入畫面時才依序出現。
+  // unitPx：主 timeline 每 1 單位時間對應的捲動距離（px），用來讓內容上移的速度與手指捲動約 1:1。
+  const addTo = (tl: gsap.core.Timeline, at: number, isMobile = false, unitPx = 0) => {
     tl
       // 整塊顯現
       .fromTo(root.value, { autoAlpha: 0 }, { autoAlpha: 1, duration: 0.2 }, at)
@@ -109,9 +112,33 @@
       .fromTo(groupEls.value, { autoAlpha: 0, y: 24 }, { autoAlpha: 1, y: 0, duration: 0.4, stagger: 0.1 }, at)
       // 進度條由左往右填滿
       .fromTo(fillEls.value, { scaleX: 0 }, { scaleX: 1, duration: 0.5, stagger: 0.04, ease: 'power2.out' }, at + 0.15)
+
+    if (!isMobile) {
       // 時間軸：直線由上往下畫出，各節點依序出現
-      .fromTo(lineEl.value, { scaleY: 0 }, { scaleY: 1, duration: 1 }, at)
-      .fromTo(stepEls.value, { autoAlpha: 0, x: 16 }, { autoAlpha: 1, x: 0, duration: 0.25, stagger: 0.25 }, at + 0.05)
+      tl.fromTo(lineEl.value, { scaleY: 0 }, { scaleY: 1, duration: 1 }, at).fromTo(
+        stepEls.value,
+        { autoAlpha: 0, x: 16 },
+        { autoAlpha: 1, x: 0, duration: 0.25, stagger: 0.25 },
+        at + 0.05
+      )
+      return
+    }
+
+    // 行動版：技能進場後，整塊內容上移「超出畫面的高度」，讓下方時間軸捲入畫面
+    // （位移量以函式值量測，搭配 invalidateOnRefresh 在視窗尺寸變更時重新計算）
+    const overflow = () => Math.max(0, (content.value?.offsetHeight ?? 0) - (root.value?.clientHeight ?? 0))
+    // 上移段落的長度依建立當下的溢出高度換算，內容移動速度與捲動同步（至少 1 單位）
+    const scrollLen = unitPx > 0 ? Math.max(1, overflow() / unitPx) : 1.6
+    const scrollAt = at + 0.7
+    tl.fromTo(content.value, { y: 0 }, { y: () => -overflow(), duration: scrollLen }, scrollAt)
+      // 時間軸直線與內容上移同步畫出，節點依捲入畫面的順序出現
+      .fromTo(lineEl.value, { scaleY: 0 }, { scaleY: 1, duration: scrollLen }, scrollAt)
+      .fromTo(
+        stepEls.value,
+        { autoAlpha: 0, x: 16 },
+        { autoAlpha: 1, x: 0, duration: 0.25, stagger: scrollLen * 0.25 },
+        scrollAt + 0.1
+      )
   }
 
   const enter = () => setText(heading) // 標題亂數解碼進場
@@ -122,85 +149,88 @@
 
 <template>
   <!-- 初始 invisible：在主 timeline 建立前（loading 期間）保持隱藏，避免閃現 -->
-  <section ref="root" class="invisible absolute inset-0 grid grid-cols-3 pointer-events-none">
-    <!-- 左 2/3：標題 + 技能矩陣 -->
-    <div class="col-span-2 flex flex-col justify-between p-6">
-      <header>
-        <p class="text-xs tracking-widest opacity-70">[ 02 ] SKILLS &amp; JOURNEY</p>
-        <h2
-          class="mt-3 min-h-[2em] text-4xl md:text-5xl lg:text-6xl uppercase leading-none"
-          v-html="headingOutput"
-        ></h2>
-      </header>
+  <!-- 行動版：單欄（標題 → 技能 → 時間軸），content 高於畫面時由 timeline 驅動上移；桌機版：左 2/3 + 右 1/3 -->
+  <section ref="root" class="invisible absolute inset-0 overflow-hidden pointer-events-none">
+    <div ref="content" class="flex flex-col md:grid md:grid-cols-3 md:h-full">
+      <!-- 左 2/3：標題 + 技能矩陣 -->
+      <div class="md:col-span-2 flex flex-col gap-8 md:gap-0 md:justify-between p-4 md:p-6">
+        <header>
+          <p class="text-xs tracking-widest opacity-70">[ 02 ] SKILLS &amp; JOURNEY</p>
+          <h2
+            class="mt-3 min-h-[2em] text-3xl md:text-5xl lg:text-6xl uppercase leading-none"
+            v-html="headingOutput"
+          ></h2>
+        </header>
 
-      <div class="grid grid-cols-2 gap-x-10 gap-y-8">
-        <div v-for="(group, i) in skillGroups" :key="group.title" ref="groupEls">
-          <div class="s-line flex justify-between border-b-[0.5px] pb-2 mb-3 text-xs font-bold">
-            <span>{{ group.title }}</span>
-            <span class="opacity-70">0{{ i + 1 }}</span>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-10 gap-y-6 md:gap-y-8">
+          <div v-for="(group, i) in skillGroups" :key="group.title" ref="groupEls">
+            <div class="s-line flex justify-between border-b-[0.5px] pb-2 mb-3 text-xs font-bold">
+              <span>{{ group.title }}</span>
+              <span class="opacity-70">0{{ i + 1 }}</span>
+            </div>
+            <ul class="space-y-2.5">
+              <li
+                v-for="item in group.items"
+                :key="item.name"
+                class="grid grid-cols-[7rem_1fr_1.5rem] md:grid-cols-[8rem_1fr_2rem] items-center gap-3 text-xs"
+              >
+                <span class="truncate">{{ item.name }}</span>
+                <span class="skill-track">
+                  <span ref="fillEls" class="skill-fill" :style="{ width: `${item.level}%` }"></span>
+                </span>
+                <span class="text-right tabular-nums opacity-70">{{ item.level }}</span>
+              </li>
+            </ul>
           </div>
-          <ul class="space-y-2.5">
-            <li
-              v-for="item in group.items"
-              :key="item.name"
-              class="grid grid-cols-[8rem_1fr_2rem] items-center gap-3 text-xs"
-            >
-              <span class="truncate">{{ item.name }}</span>
-              <span class="skill-track">
-                <span ref="fillEls" class="skill-fill" :style="{ width: `${item.level}%` }"></span>
-              </span>
-              <span class="text-right tabular-nums opacity-70">{{ item.level }}</span>
-            </li>
-          </ul>
         </div>
       </div>
-    </div>
 
-    <!-- 右 1/3：經歷時間軸 -->
-    <div class="s-line flex flex-col border-l-[0.5px] p-6">
-      <p class="flex justify-between text-xs tracking-widest opacity-70">
-        <span>TIMELINE</span>
-        <span>2017 — NOW</span>
-      </p>
-      <ol class="relative mt-6 mb-1 flex flex-1 flex-col justify-between pl-6">
-        <span ref="lineEl" class="absolute left-0 top-1 bottom-1 w-px bg-current origin-top"></span>
-        <li v-for="step in timeline" :key="step.period" ref="stepEls" class="relative">
-          <!-- 菱形節點壓在時間軸直線上；目前任職者為實心並加上脈衝光暈 -->
-          <span
-            class="node absolute -left-6 top-0.5 size-2 -translate-x-1/2 rotate-45 border border-current"
-            :class="{ 'is-current bg-current': step.current }"
-          ></span>
-          <p class="text-[10px] tracking-widest tabular-nums opacity-70 uppercase">{{ step.period }}</p>
-          <h3 class="mt-1.5 text-sm lg:text-base font-bold leading-tight">{{ step.role }}</h3>
-          <!-- 公司：小 icon + 名稱，有官網時為外部連結（另開分頁） -->
-          <component
-            :is="step.url ? 'a' : 'span'"
-            :href="step.url"
-            :target="step.url ? '_blank' : undefined"
-            :rel="step.url ? 'noopener noreferrer' : undefined"
-            class="company mt-1 inline-flex items-center gap-1.5 text-[11px] tracking-wide"
-            :class="{ 'is-link pointer-events-auto': step.url }"
-          >
-            <span class="company-icon">
-              <img v-if="step.logo" :src="step.logo" :alt="`${step.company} logo`" />
-              <template v-else>{{ step.company[0] }}</template>
-            </span>
-            <span class="company-name">{{ step.company }}</span>
-            <span v-if="step.url" class="company-arrow" aria-hidden="true">↗</span>
-          </component>
-          <p class="mt-2 text-xs leading-relaxed opacity-80">{{ step.desc }}</p>
-          <!-- 關鍵字標籤：視窗高度不足時隱藏，避免四段經歷擠壓重疊 -->
-          <ul class="mt-2 flex flex-wrap gap-1.5 [@media(max-height:820px)]:hidden">
-            <li
-              v-for="tag in step.tags"
-              :key="tag"
-              class="s-line border-[0.5px] px-1.5 py-0.5 text-[10px] leading-none"
+      <!-- 右 1/3：經歷時間軸 -->
+      <div class="s-line flex flex-col border-t-[0.5px] md:border-t-0 md:border-l-[0.5px] p-4 md:p-6">
+        <p class="flex justify-between text-xs tracking-widest opacity-70">
+          <span>TIMELINE</span>
+          <span>2017 — NOW</span>
+        </p>
+        <ol class="relative mt-6 mb-1 flex flex-col gap-8 md:gap-0 md:flex-1 md:justify-between pl-6">
+          <span ref="lineEl" class="absolute left-0 top-1 bottom-1 w-px bg-current origin-top"></span>
+          <li v-for="step in timeline" :key="step.period" ref="stepEls" class="relative">
+            <!-- 菱形節點壓在時間軸直線上；目前任職者為實心並加上脈衝光暈 -->
+            <span
+              class="node absolute -left-6 top-0.5 size-2 -translate-x-1/2 rotate-45 border border-current"
+              :class="{ 'is-current bg-current': step.current }"
+            ></span>
+            <p class="text-[10px] tracking-widest tabular-nums opacity-70 uppercase">{{ step.period }}</p>
+            <h3 class="mt-1.5 text-sm lg:text-base font-bold leading-tight">{{ step.role }}</h3>
+            <!-- 公司：小 icon + 名稱，有官網時為外部連結（另開分頁） -->
+            <component
+              :is="step.url ? 'a' : 'span'"
+              :href="step.url"
+              :target="step.url ? '_blank' : undefined"
+              :rel="step.url ? 'noopener noreferrer' : undefined"
+              class="company mt-1 inline-flex items-center gap-1.5 text-[11px] tracking-wide"
+              :class="{ 'is-link pointer-events-auto': step.url }"
             >
-              {{ tag }}
-            </li>
-          </ul>
-        </li>
-      </ol>
+              <span class="company-icon">
+                <img v-if="step.logo" :src="step.logo" :alt="`${step.company} logo`" />
+                <template v-else>{{ step.company[0] }}</template>
+              </span>
+              <span class="company-name">{{ step.company }}</span>
+              <span v-if="step.url" class="company-arrow" aria-hidden="true">↗</span>
+            </component>
+            <p class="mt-2 text-xs leading-relaxed opacity-80">{{ step.desc }}</p>
+            <!-- 關鍵字標籤：視窗高度不足時隱藏，避免四段經歷擠壓重疊 -->
+            <ul class="mt-2 flex flex-wrap gap-1.5 md:[@media(max-height:820px)]:hidden">
+              <li
+                v-for="tag in step.tags"
+                :key="tag"
+                class="s-line border-[0.5px] px-1.5 py-0.5 text-[10px] leading-none"
+              >
+                {{ tag }}
+              </li>
+            </ul>
+          </li>
+        </ol>
+      </div>
     </div>
   </section>
 </template>

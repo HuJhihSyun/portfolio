@@ -12,12 +12,12 @@
   const { tiltStyle } = useTilt({ max: 1, scale: 1.06 })
 
   const root = ref<HTMLElement | null>(null)
+  const spacer = ref<HTMLElement | null>(null)
   const bgWrap = ref<HTMLElement | null>(null)
   const bgCard = ref<HTMLElement | null>(null)
   const bgFront = ref<HTMLElement | null>(null)
   const bgBack = ref<HTMLElement | null>(null)
   const bgShade = ref<HTMLElement | null>(null)
-  const panelWrap = ref<HTMLElement | null>(null)
   const panelRef = ref<{
     enter: () => void
     scrambleOut: () => void
@@ -27,7 +27,7 @@
     aboutIn: () => void
     aboutOut: () => void
     skills: {
-      addTo: (tl: gsap.core.Timeline, at: number) => void
+      addTo: (tl: gsap.core.Timeline, at: number, isMobile?: boolean, unitPx?: number) => void
       enter: () => void
       leave: () => void
     } | null
@@ -36,6 +36,7 @@
       characterWrap: HTMLElement
       characterCard: HTMLElement
       aboutWrap: HTMLElement
+      bgSlot: HTMLElement
     }
   } | null>(null)
 
@@ -59,17 +60,19 @@
     }
   })
 
-  // Panel 主題色進度（0=白字 → 1=黑字），由主 timeline 補間：第二幕白→黑、第三幕蓋上滿版圖時黑→白
-  const theme = { v: 0 }
-  const applyPanelTheme = () => {
-    const el = panelWrap.value
-    if (!el) return
-    const fg = Math.round(255 * (1 - theme.v)) // 前景：白(255) → 黑(0)
+  // Panel 主題色進度（0=白字 → 1=黑字），由主 timeline 補間：第二幕白→黑、第三幕蓋上滿版圖時黑→白。
+  // 以 ref + computed 綁定 CSS 變數（而非 tween 的 onUpdate 回呼）：ScrollTrigger refresh 重新渲染時
+  // 會略過回呼，用回呼同步會讓配色停在舊值；綁定響應式值則永遠與實際進度一致。
+  const themeProgress = ref(0)
+  const panelTheme = computed(() => {
+    const fg = Math.round(255 * (1 - themeProgress.value)) // 前景：白(255) → 黑(0)
     const bg = 255 - fg // 背景：黑(0) → 白(255)
-    el.style.setProperty('--panel-fg', `rgb(${fg} ${fg} ${fg})`)
-    el.style.setProperty('--panel-bg', `rgb(${bg} ${bg} ${bg})`)
-    el.style.setProperty('--panel-line', `rgb(${fg} ${fg} ${fg} / 0.5)`) // 框線：前景色 50% 透明
-  }
+    return {
+      '--panel-fg': `rgb(${fg} ${fg} ${fg})`,
+      '--panel-bg': `rgb(${bg} ${bg} ${bg})`,
+      '--panel-line': `rgb(${fg} ${fg} ${fg} / 0.5)` // 框線：前景色 50% 透明
+    }
+  })
 
   // 捲動門檻的開關狀態：依 timeline 時間推導各區塊「應有的狀態」，只在狀態改變時觸發一次。
   // （由狀態推導而非逐一比對門檻，快速來回捲過多個門檻時最終狀態仍正確）
@@ -113,34 +116,43 @@
   }
 
   const LOADING_DELAY = 3000 // 開場 loading 動畫時長（ms），捲動動畫延遲同樣時間再建立
+  const VH_PER_UNIT = 50 // 每 1 單位 timeline 時間對應的捲動距離（vh），捲動空間依 timeline 總長換算
   let tl: gsap.core.Timeline | null = null
+  let mm: gsap.MatchMedia | null = null
   let startTimer: ReturnType<typeof setTimeout> | null = null
 
-  const buildTimeline = () => {
+  // 依斷點建立主 timeline（由 gsap.matchMedia 呼叫；跨越斷點時自動 revert 舊的並重建）
+  const buildTimeline = (isMobile: boolean) => {
     const refs = panelRef.value?.$refs
+    // 第二幕小圖落點（視窗座標）；以函式值傳給補間，搭配 invalidateOnRefresh 在視窗尺寸變更時重新量測
+    const slotRect = () => refs!.bgSlot.getBoundingClientRect()
 
-    // 所有動畫由「單一 ScrollTrigger 驅動一條主 timeline」，依分段時間排列，scrollTrigger 設定只需寫一份
-    tl = gsap.timeline({
-      defaults: { ease: 'none', duration: 1 },
-      scrollTrigger: {
-        trigger: root.value,
-        start: 'top top',
-        end: 'bottom bottom', // 捲到 root 底部時剛好播完
-        scrub: 0.5, // 平滑跟隨捲動
-        invalidateOnRefresh: true, // 視窗尺寸變更時重新計算
-        onUpdate: (self) => updateGates(self.progress * (tl?.duration() ?? 0))
-      }
-    })
+    // 所有動畫排在同一條主 timeline、由單一 ScrollTrigger 驅動。
+    // 先排好補間、依總長設定捲動空間，最後才建立 ScrollTrigger（確保量測到正確的捲動範圍）
+    tl = gsap.timeline({ defaults: { ease: 'none', duration: 1 }, paused: true })
 
+    // 注意：因 invalidateOnRefresh，視窗尺寸變更時補間會重新記錄起始值。
+    // 若用 .to()，在捲動途中 resize 會把「當下的中間狀態」誤記為起點，回捲時就無法還原，
+    // 因此各段的起始狀態一律以 fromTo 明確指定（第三幕的 fromTo 加 immediateRender:false，避免建立時就套用）。
     tl
       // ── 第二幕 ──
-      // 背景大圖：縮成右下角小圖（錨定 right/bottom，寬高縮小時往右下收；pic ratio 7:4）
-      .to(bgWrap.value, { width: '350px', height: '200px', left: 'calc(33.3% + 12px)', bottom: '48px' }, 0)
+      // 背景大圖：由滿版縮成小圖，落點與尺寸取自 Panel 內的 bgSlot（由 CSS 決定各斷點的位置，RWD 自動對應）
+      .fromTo(
+        bgWrap.value,
+        { width: () => window.innerWidth, height: () => window.innerHeight, left: 0, bottom: 0 },
+        {
+          width: () => slotRect().width,
+          height: () => slotRect().height,
+          left: () => slotRect().left,
+          bottom: () => window.innerHeight - slotRect().bottom
+        },
+        0
+      )
       // 背景大圖長出科技感切角、Panel 配色 白 → 黑
-      .to(cornerProgress, { value: 1 }, 0)
-      .to(theme, { v: 1, onUpdate: applyPanelTheme }, 0)
+      .fromTo(cornerProgress, { value: 0 }, { value: 1 }, 0)
+      .fromTo(themeProgress, { value: 0 }, { value: 1 }, 0)
       // 左上 profile 文字：淡出
-      .to(refs?.headerText, { opacity: 0 }, 0)
+      .fromTo(refs?.headerText, { opacity: 1 }, { opacity: 0 }, 0)
       // 角色欄整體淡入
       .fromTo(refs?.characterWrap, { opacity: 0 }, { opacity: 1 }, 0)
       // 角色卡片：以中心為軸翻轉進入
@@ -170,20 +182,40 @@
         },
         ACT3
       )
-      .to(bgCard.value, { rotationY: 180, duration: FLIP, ease: 'power2.inOut' }, ACT3)
+      .fromTo(
+        bgCard.value,
+        { rotationY: 0 },
+        { rotationY: 180, duration: FLIP, ease: 'power2.inOut', immediateRender: false },
+        ACT3
+      )
       // 翻到側面（90°）的瞬間正反面互換：正面（小圖）隱藏、背面（第三幕背景）顯示
-      .set(bgFront.value, { autoAlpha: 0 }, FLIP_MID)
-      .set(bgBack.value, { autoAlpha: 1 }, FLIP_MID)
+      .fromTo(bgFront.value, { autoAlpha: 1 }, { autoAlpha: 0, duration: 0, immediateRender: false }, FLIP_MID)
+      .fromTo(bgBack.value, { autoAlpha: 0 }, { autoAlpha: 1, duration: 0, immediateRender: false }, FLIP_MID)
       // 後半段：切角收回成滿版矩形、Panel 配色 黑 → 白、背景壓暗讓文字可讀
-      .to(cornerProgress, { value: 0, duration: FLIP / 2 }, FLIP_MID)
-      .to(theme, { v: 0, duration: FLIP / 2, onUpdate: applyPanelTheme }, FLIP_MID)
+      .fromTo(cornerProgress, { value: 1 }, { value: 0, duration: FLIP / 2, immediateRender: false }, FLIP_MID)
+      .fromTo(themeProgress, { value: 1 }, { value: 0, duration: FLIP / 2, immediateRender: false }, FLIP_MID)
       .fromTo(bgShade.value, { opacity: 0 }, { opacity: 1, duration: FLIP / 2 }, FLIP_MID)
 
-    // ── 第三幕：技能矩陣 + 時間軸進場 ──
-    panelRef.value?.skills?.addTo(tl, SKILLS)
+    // ── 第三幕：技能矩陣 + 時間軸進場（行動版另含內容上移，timeline 較長）──
+    panelRef.value?.skills?.addTo(tl, SKILLS, isMobile, (window.innerHeight * VH_PER_UNIT) / 100)
 
     // 結尾停留，讓第三幕內容完整呈現後還有一段捲動空間
     tl.to({}, { duration: 0.4 })
+
+    // 捲動空間 = timeline 總長換算的捲動距離 + 一個視窗高（各斷點的每段捲動手感一致）
+    if (spacer.value) spacer.value.style.height = `${tl.duration() * VH_PER_UNIT + 100}vh`
+
+    const trigger = ScrollTrigger.create({
+      animation: tl,
+      trigger: root.value,
+      start: 'top top',
+      end: 'bottom bottom', // 捲到 root 底部時剛好播完
+      scrub: 0.5, // 平滑跟隨捲動
+      invalidateOnRefresh: true, // 視窗尺寸變更時重新計算
+      onUpdate: (self) => updateGates(self.progress * (tl?.duration() ?? 0))
+    })
+    // 斷點切換重建後，依目前捲動位置同步一次門檻狀態（亂碼 / Block Reveal 等非 scrub 的進退場）
+    updateGates(trigger.progress * tl.duration())
   }
 
   onMounted(() => {
@@ -203,20 +235,23 @@
     // 開場 loading 結束（約 3 秒）後：先播主頁面進場（左上解碼 + 右下標題），再建立捲動動畫
     startTimer = setTimeout(() => {
       panelRef.value?.enter()
-      buildTimeline()
+      // 行動版 / 桌機版各建一條 timeline（對應 Tailwind md 斷點 768px）
+      mm = gsap.matchMedia()
+      mm.add({ isMobile: '(max-width: 767px)', isDesktop: '(min-width: 768px)' }, (ctx) => {
+        buildTimeline(!!ctx.conditions?.isMobile)
+      })
     }, LOADING_DELAY)
   })
 
   onBeforeUnmount(() => {
     if (startTimer) clearTimeout(startTimer)
-    tl?.scrollTrigger?.kill()
-    tl?.kill()
+    mm?.revert() // 一併清除 matchMedia 內建立的 timeline 與 ScrollTrigger
   })
 </script>
 
 <template>
   <div ref="root" class="w-full">
-    <div ref="panelWrap" class="relative w-full p-6 z-10">
+    <div class="relative w-full p-3 md:p-6 z-10" :style="panelTheme">
       <Panel ref="panelRef" />
     </div>
 
@@ -259,17 +294,17 @@
               class="w-full h-full object-cover will-change-transform"
               :style="{ transform: tiltStyle }"
             />
-            <!-- 壓暗遮罩：讓第三幕白字可讀 -->
+            <!-- 壓暗遮罩：讓第三幕白字可讀（行動版文字滿寬，改為均勻壓暗） -->
             <div
               ref="bgShade"
-              class="absolute inset-0 bg-linear-to-r from-black/75 via-black/55 to-black/35 opacity-0"
+              class="absolute inset-0 bg-linear-to-r from-black/75 via-black/55 to-black/35 max-md:bg-none max-md:bg-black/65 opacity-0"
             ></div>
           </TechFrame>
         </div>
       </div>
     </div>
 
-    <!-- 製造捲動距離，讓 ScrollTrigger 有可捲動的範圍（各幕長度依主 timeline 分段比例分配） -->
-    <section class="relative z-10 h-[300vh] pointer-events-none"></section>
+    <!-- 製造捲動距離（初始高度供 timeline 建立前使用，建立後依 timeline 總長改寫） -->
+    <section ref="spacer" class="relative z-10 h-[300vh] pointer-events-none"></section>
   </div>
 </template>

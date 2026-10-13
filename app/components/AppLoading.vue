@@ -82,6 +82,8 @@
         flow?.kill()
         msgTween?.kill()
       }, 2.2)
+      // 遮罩黑底改為透明，讓方塊縮小時露出底下的主頁面
+      .set(el, { backgroundColor: 'transparent' }, 2.2)
       // 方塊由邊緣往內 stagger 縮成 0（流動性地消失）
       .to(
         boxes,
@@ -89,8 +91,7 @@
           scale: 0,
           duration: 0.55,
           ease: 'sine.inOut',
-          repeat: -1,
-          yoyo: true,
+          // 只縮一次：若設 repeat:-1，主時間軸會變成無限長、onComplete 永不觸發，遮罩無法卸載
           stagger: { each: 0.005, grid: [ROWS, COLS], from: 'edges' }
         },
         2.2
@@ -127,7 +128,8 @@
 </script>
 
 <template>
-  <div v-if="show" ref="root" class="fixed inset-0 z-50 flex items-center justify-center overflow-hidden">
+  <!-- 遮罩本身墊黑底：確保方塊之間任何縫隙都不會透出底下頁面（收場時才改為透明） -->
+  <div v-if="show" ref="root" class="fixed inset-0 z-50 flex items-center justify-center overflow-hidden bg-black">
     <!-- 背景流動方塊格 -->
     <div
       class="boxes absolute inset-0 grid"
@@ -137,9 +139,12 @@
     </div>
 
     <div ref="hud" class="relative w-full z-10 flex flex-col items-center">
-      <div class="w-1/3 flex flex-col gap-2 text-white">
+      <!-- 行動版加寬進度區塊，避免百分比與訊息文字斷行 -->
+      <div class="w-3/4 sm:w-1/2 md:w-1/3 flex flex-col gap-2 text-white">
         <div class="flex justify-start items-start leading-none">
-          <span class="text-sm tracking-widest">Loading - {{ String(percent).padStart(3, '0') }}</span>
+          <span class="text-sm tracking-widest whitespace-nowrap"
+            >Loading - {{ String(percent).padStart(3, '0') }}</span
+          >
           <span class="text-sm">%</span>
         </div>
         <div class="relative h-0.5 bg-white/10 overflow-hidden">
@@ -149,7 +154,9 @@
           ></div>
           <div class="bar-scan absolute top-0 left-0 w-2/5 h-full bg-linear-to-r from-white/50 to-white/0"></div>
         </div>
-        <div class="text-xs tracking-widest font-light text-right">{{ message || 'SYSTEM INITIALIZING' }}</div>
+        <div class="text-xs tracking-widest font-light text-right whitespace-nowrap">
+          {{ message || 'SYSTEM INITIALIZING' }}
+        </div>
       </div>
     </div>
   </div>
@@ -161,6 +168,9 @@
     .box {
       background: rgba(#111, 1);
       will-change: transform, opacity;
+      /* 格子寬高多為小數（如 47.25px），各方塊邊緣反鋸齒後會留下髮絲縫；
+         四邊各外擴 0.5px 與相鄰方塊重疊，消除縫隙 */
+      margin: -0.5px;
     }
   }
 

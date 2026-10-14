@@ -61,9 +61,9 @@
     leave: () => void
   } | null>(null)
 
-  // 第四幕：精選作品（作品卡片落點 + 捲動補間，由 index.vue 的主 timeline 透過 works.addTo() 接入）
+  // 第四幕：精選作品（輪播外框落點 + 捲動補間，由 index.vue 的主 timeline 透過 works.addTo() 接入）
   const works = ref<{
-    addTo: (tl: gsap.core.Timeline, at: number) => void
+    addTo: (tl: gsap.core.Timeline, at: number, scrollLen: number, isMobile?: boolean) => void
     enter: () => void
     leave: () => void
     slotRect: () => DOMRect

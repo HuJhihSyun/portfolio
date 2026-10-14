@@ -6,8 +6,6 @@
   import mainPic from '@/assets/images/main.png'
   // 第三幕滿版背景（TODO: 換成專屬的第三幕視覺；直式長圖的視差效果最明顯，目前暫用主視覺）
   import stagePic from '@/assets/images/main.png'
-  // 第四幕作品卡片（TODO: 換成作品主視覺截圖）
-  import workPic from '@/assets/images/character.jpg'
 
   gsap.registerPlugin(ScrollTrigger)
 
@@ -21,7 +19,6 @@
   const bgBack = ref<HTMLElement | null>(null)
   const bgShade = ref<HTMLElement | null>(null)
   const bgParallax = ref<HTMLElement | null>(null)
-  const bgWork = ref<HTMLElement | null>(null)
   const panelRef = ref<{
     enter: () => void
     scrambleOut: () => void
@@ -37,7 +34,7 @@
       leave: () => void
     } | null
     works: {
-      addTo: (tl: gsap.core.Timeline, at: number) => void
+      addTo: (tl: gsap.core.Timeline, at: number, scrollLen: number, isMobile?: boolean) => void
       enter: () => void
       leave: () => void
       slotRect: () => DOMRect
@@ -59,7 +56,8 @@
   const FLIP = 1.2 // 第二 → 三幕轉場：小圖立體翻轉 + 放大至滿版
   const ACT3_HOLD = 1.6 // 第三幕內容全部進場後的停留（背景持續視差位移）
   const FLIP2 = 1.2 // 第三 → 四幕轉場：滿版背景反向翻轉、縮成中央作品卡片
-  const ACT4_HOLD = 1.6 // 第四幕停留
+  const WORKS_SCROLL = 3 // 第四幕作品輪播：兩列卡片隨捲動往相反方向位移的長度
+  const END_HOLD = 0.4 // 輪播走完後的結尾停留
   const PARALLAX_SHIFT = 23 // 第三幕背景視差位移量（視差層 yPercent；視差層高 130%，最多可移約 23%）
 
   const ACT2 = INTRO_HOLD // 第二幕轉場起點
@@ -245,7 +243,7 @@
       FLIP_MID
     )
 
-    // ── 第四幕：滿版背景沿同方向繼續翻轉（180° → 360°）並縮進中央作品卡片 ──
+    // ── 第四幕：滿版背景沿同方向繼續翻轉（180° → 360°）並縮向中央輪播區，翻到側面時消失、由輪播接手 ──
     const workRect = () => panel!.works!.slotRect()
     tl.fromTo(
       bgWrap.value,
@@ -270,16 +268,14 @@
       // 縮小時露出淺色底 → Panel 配色 白 → 黑；背景遮罩隨之淡出
       .fromTo(themeProgress, { value: 0 }, { value: 1, duration: FLIP2 / 2, immediateRender: false }, ACT4)
       .fromTo(bgShade.value, { opacity: 1 }, { opacity: 0, duration: FLIP2 / 2, immediateRender: false }, ACT4)
-      // 翻到側面的瞬間：背面（第三幕背景）隱藏、正面換成作品卡片，並重新長出科技感切角
+      // 翻到側面的瞬間：背面（第三幕背景）隱藏，輪播卡片隨即在同一位置展開
       .fromTo(bgBack.value, { autoAlpha: 1 }, { autoAlpha: 0, duration: 0, immediateRender: false }, FLIP2_MID)
-      .fromTo(bgWork.value, { autoAlpha: 0 }, { autoAlpha: 1, duration: 0, immediateRender: false }, FLIP2_MID)
-      .fromTo(cornerProgress, { value: 0 }, { value: 1, duration: FLIP2 / 2, immediateRender: false }, FLIP2_MID)
 
-    // 第四幕作品資訊進場
-    panel?.works?.addTo(tl, FLIP2_MID)
+    // 第四幕：區塊資訊進場 + 作品輪播（兩列隨捲動往相反方向位移）
+    panel?.works?.addTo(tl, FLIP2_MID, WORKS_SCROLL, isMobile)
 
-    // 第四幕停留
-    tl.to({}, { duration: ACT4_HOLD })
+    // 結尾停留
+    tl.to({}, { duration: END_HOLD })
 
     // 捲動空間 = timeline 總長換算的捲動距離 + 一個視窗高（各斷點的每段捲動手感一致）
     if (spacer.value) spacer.value.style.height = `${tl.duration() * VH_PER_UNIT + 100}vh`
@@ -381,24 +377,6 @@
               ref="bgShade"
               class="absolute inset-0 bg-linear-to-r from-black/75 via-black/55 to-black/35 max-md:bg-none max-md:bg-black/65 opacity-0"
             ></div>
-          </TechFrame>
-        </div>
-        <!-- 第四幕作品卡片：與正面同向（卡片翻到 360° 時正好轉正），翻到 270° 側面時才顯示 -->
-        <div ref="bgWork" class="absolute inset-0 invisible opacity-0">
-          <TechFrame
-            :strokeWidth="0"
-            :top-left="bgCorners.topLeft"
-            :top-right="bgCorners.topRight"
-            :bottom-right="bgCorners.bottomRight"
-            :bottom-left="bgCorners.bottomLeft"
-            class="w-full h-full"
-          >
-            <img
-              :src="workPic"
-              alt="featured work"
-              class="w-full h-full object-cover will-change-transform"
-              :style="{ transform: tiltStyle }"
-            />
           </TechFrame>
         </div>
       </div>

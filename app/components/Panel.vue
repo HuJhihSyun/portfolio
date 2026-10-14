@@ -10,6 +10,9 @@
     { label: 'Contact' }
   ])
 
+  // 側選單開關（漢堡按鈕開啟，SideMenu 內的關閉鈕 / 遮罩 / Esc 關閉）
+  const menuOpen = ref(false)
+
   const profileText = `Senior Front-End Engineer & Designer with 5+ years of experience specializing in the Vue ecosystem (Vue/Nuxt) and high-performance e-commerce platforms. Expert in blending design with code to build immersive, interactive web experiences using GSAP and D3.js. Proven track record in optimizing web performance (LCP/CLS) and delivering scalable architectures from concept to deployment.`
   const profileText2 = `My journey into web development began at the intersection of aesthetics and logic. Early in my career, I acted as both a visual designer and front-end developer, mastering the art of storytelling through engaging interactions and rich animations with GSAP and D3.js. This dual perspective instilled in me a deep sensitivity to user experience that continues to guide my engineering decisions today.`
 
@@ -78,7 +81,9 @@
           </li>
         </ul>
       </nav>
-      <span class="p-line text-xs text-center py-3 whitespace-nowrap border-l-[0.5px] w-10 md:w-14">Z</span>
+      <span class="p-line flex self-stretch border-l-[0.5px]">
+        <AtomsBurgerButton class="px-3 py-3.25" :expanded="menuOpen" @click="menuOpen = true" />
+      </span>
     </div>
     <div class="middle w-full flex-1 min-h-0 flex justify-center items-center">
       <main class="relative w-full h-full overflow-hidden">
@@ -154,12 +159,13 @@
         ></div>
         <SkillsBoard ref="skills" />
       </main>
-      <div
-        class="p-line h-full text-xs md:px-6 py-3 flex justify-center items-center whitespace-nowrap border-l-[0.5px] w-10 md:w-14"
-      >
-        <span class="text-xs font-normal [writing-mode:vertical-rl]">Side Project by Syun</span>
+      <div class="p-line h-full text-xs px-3 py-3 flex justify-center items-center whitespace-nowrap border-l-[0.5px]">
+        <span class="text-[11px] leading-5 md:leading-8 md:text-xs font-normal [writing-mode:vertical-rl]"
+          >Side Project by Syun</span
+        >
       </div>
     </div>
+    <SideMenu v-model:open="menuOpen" />
   </div>
 </template>
 

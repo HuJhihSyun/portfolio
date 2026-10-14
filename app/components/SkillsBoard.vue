@@ -129,7 +129,8 @@
     const overflow = () => Math.max(0, (content.value?.offsetHeight ?? 0) - (root.value?.clientHeight ?? 0))
     // 上移段落的長度依建立當下的溢出高度換算，內容移動速度與捲動同步（至少 1 單位）
     const scrollLen = unitPx > 0 ? Math.max(1, overflow() / unitPx) : 1.6
-    const scrollAt = at + 0.7
+    // 技能進度條填滿（約 at + 1.1）後先停留一小段讓使用者閱讀，才開始上移
+    const scrollAt = at + 1.5
     tl.fromTo(content.value, { y: 0 }, { y: () => -overflow(), duration: scrollLen }, scrollAt)
       // 時間軸直線與內容上移同步畫出，節點依捲入畫面的順序出現
       .fromTo(lineEl.value, { scaleY: 0 }, { scaleY: 1, duration: scrollLen }, scrollAt)
@@ -141,10 +142,20 @@
       )
   }
 
+  // 第三幕停留 + 退場：holdAt ~ outAt 為停留區段（桌機版內容緩慢上飄，與背景視差形成層次），
+  // outAt 起整塊淡出、往上移出，交棒給第四幕
+  const addOutro = (tl: gsap.core.Timeline, holdAt: number, outAt: number, isMobile = false) => {
+    // 行動版的 content 已由上移捲動補間使用，不再疊加位移，避免互相覆蓋
+    if (!isMobile) {
+      tl.fromTo(content.value, { y: 0 }, { y: -40, duration: outAt - holdAt, immediateRender: false }, holdAt)
+    }
+    tl.fromTo(root.value, { autoAlpha: 1 }, { autoAlpha: 0, duration: 0.4, immediateRender: false }, outAt)
+  }
+
   const enter = () => setText(heading) // 標題亂數解碼進場
   const leave = () => setText('') // 標題亂碼解散
 
-  defineExpose({ addTo, enter, leave })
+  defineExpose({ addTo, addOutro, enter, leave })
 </script>
 
 <template>

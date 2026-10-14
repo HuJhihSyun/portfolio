@@ -55,13 +55,22 @@
 
   // 第三幕：技能矩陣 + 時間軸（捲動補間由 index.vue 的主 timeline 透過 skills.addTo() 接入）
   const skills = ref<{
-    addTo: (tl: gsap.core.Timeline, at: number) => void
+    addTo: (tl: gsap.core.Timeline, at: number, isMobile?: boolean, unitPx?: number) => void
+    addOutro: (tl: gsap.core.Timeline, holdAt: number, outAt: number, isMobile?: boolean) => void
     enter: () => void
     leave: () => void
   } | null>(null)
 
+  // 第四幕：精選作品（作品卡片落點 + 捲動補間，由 index.vue 的主 timeline 透過 works.addTo() 接入）
+  const works = ref<{
+    addTo: (tl: gsap.core.Timeline, at: number) => void
+    enter: () => void
+    leave: () => void
+    slotRect: () => DOMRect
+  } | null>(null)
+
   // 暴露給父層（index.vue）呼叫
-  defineExpose({ enter, scrambleOut, scrambleIn, revealOut, revealIn, aboutIn, aboutOut, skills })
+  defineExpose({ enter, scrambleOut, scrambleIn, revealOut, revealIn, aboutIn, aboutOut, skills, works })
 </script>
 
 <template>
@@ -112,7 +121,7 @@
         <!-- 第二幕角色欄：行動版置於左下（佔下方 58%，矮螢幕 45% 讓出空間給內文），桌機版為左側 1/3 滿高 -->
         <div
           ref="characterWrap"
-          class="absolute left-0 bottom-0 w-1/2 h-[58%] max-md:[@media(max-height:640px)]:h-[45%] border-t-[0.5px] border-r-[0.5px] p-line p-4 md:top-0 md:w-1/3 md:h-full md:border-t-0 md:p-6"
+          class="absolute left-0 bottom-0 hidden md:flex w-1/2 h-[58%] max-md:[@media(max-height:640px)]:h-[45%] border-t-[0.5px] border-r-[0.5px] p-line p-4 md:top-0 md:w-1/3 md:h-full md:border-t-0 md:p-6"
         >
           <!-- perspective 容器 + 卡片層：卡片以右緣為軸做 3D 翻開（由 index.vue 的 ScrollTrigger 驅動） -->
           <div class="w-full h-full perspective-distant">
@@ -155,9 +164,10 @@
         <!-- 第二幕背景小圖的落點（不可見的定位參考）：index.vue 量測此元素的位置與尺寸，把背景大圖縮放到這裡。行動版為右下直式卡片，桌機版對齊右側內文、350×200 橫式 -->
         <div
           ref="bgSlot"
-          class="invisible absolute pointer-events-none right-4 bottom-4 w-[calc(50%-32px)] aspect-3/4 md:right-auto md:left-[calc(100%/3+24px)] md:bottom-6 md:w-[350px] md:h-[200px] md:aspect-auto"
+          class="invisible absolute pointer-events-none right-4 bottom-4 w-[calc(100%-32px)] aspect-4/3 md:right-auto md:left-[calc(100%/3+24px)] md:bottom-6 md:w-87.5 md:h-50 md:aspect-auto"
         ></div>
         <SkillsBoard ref="skills" />
+        <WorksBoard ref="works" />
       </main>
       <div class="p-line h-full text-xs px-3 py-3 flex justify-center items-center whitespace-nowrap border-l-[0.5px]">
         <span class="text-[11px] leading-5 md:leading-8 md:text-xs font-normal [writing-mode:vertical-rl]"

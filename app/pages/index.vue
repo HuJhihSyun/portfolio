@@ -4,8 +4,10 @@
   import { ScrollTrigger } from 'gsap/ScrollTrigger'
 
   import mainPic from '@/assets/images/main.png'
-  // 第三幕滿版背景（TODO: 換成專屬的第三幕視覺；目前暫用主視覺）
+  // 第三幕滿版背景（TODO: 換成專屬的第三幕視覺；直式長圖的視差效果最明顯，目前暫用主視覺）
   import stagePic from '@/assets/images/main.png'
+  // 第四幕作品卡片（TODO: 換成作品主視覺截圖）
+  import workPic from '@/assets/images/character.jpg'
 
   gsap.registerPlugin(ScrollTrigger)
 
@@ -18,6 +20,8 @@
   const bgFront = ref<HTMLElement | null>(null)
   const bgBack = ref<HTMLElement | null>(null)
   const bgShade = ref<HTMLElement | null>(null)
+  const bgParallax = ref<HTMLElement | null>(null)
+  const bgWork = ref<HTMLElement | null>(null)
   const panelRef = ref<{
     enter: () => void
     scrambleOut: () => void
@@ -28,8 +32,15 @@
     aboutOut: () => void
     skills: {
       addTo: (tl: gsap.core.Timeline, at: number, isMobile?: boolean, unitPx?: number) => void
+      addOutro: (tl: gsap.core.Timeline, holdAt: number, outAt: number, isMobile?: boolean) => void
       enter: () => void
       leave: () => void
+    } | null
+    works: {
+      addTo: (tl: gsap.core.Timeline, at: number) => void
+      enter: () => void
+      leave: () => void
+      slotRect: () => DOMRect
     } | null
     $refs: {
       headerText: HTMLElement
@@ -40,12 +51,23 @@
     }
   } | null>(null)
 
-  // 主 timeline 的分段（timeline 時間單位；實際捲動距離依比例分配到 root 的高度）
-  const ACT2 = 1 // 第二幕：大圖縮成小圖、角色卡片翻入
-  const ACT3 = ACT2 + 0.3 // 第三幕起點（第二幕播完後稍作停留）
-  const FLIP = 1.2 // 小圖立體翻轉 + 放大至滿版的長度
+  // 主 timeline 的分段（timeline 時間單位；1 單位 = VH_PER_UNIT 的捲動距離，目前為 50vh）
+  // 各幕「停留」為畫面不變、只消耗捲動距離的區段，讓使用者有時間閱讀；要調整節奏改這裡即可
+  const INTRO_HOLD = 0.4 // 第一幕停留：開始捲動後先維持主視覺一小段，才進入轉場
+  const ACT2_IN = 1 // 第一 → 二幕轉場：大圖縮成小圖、角色卡片翻入
+  const ACT2_HOLD = 2 // 第二幕停留（約一個畫面高的捲動距離），讓自我介紹有時間讀完
+  const FLIP = 1.2 // 第二 → 三幕轉場：小圖立體翻轉 + 放大至滿版
+  const ACT3_HOLD = 1.6 // 第三幕內容全部進場後的停留（背景持續視差位移）
+  const FLIP2 = 1.2 // 第三 → 四幕轉場：滿版背景反向翻轉、縮成中央作品卡片
+  const ACT4_HOLD = 1.6 // 第四幕停留
+  const PARALLAX_SHIFT = 23 // 第三幕背景視差位移量（視差層 yPercent；視差層高 130%，最多可移約 23%）
+
+  const ACT2 = INTRO_HOLD // 第二幕轉場起點
+  const ACT3 = ACT2 + ACT2_IN + ACT2_HOLD // 第三幕轉場起點
   const FLIP_MID = ACT3 + FLIP / 2 // 翻到 90°（側面）的時間點：正反面在此切換
   const SKILLS = ACT3 + FLIP // 技能矩陣 / 時間軸進場起點
+  // 第四幕轉場起點：第三幕內容長度依斷點不同（行動版含內容上移），於建立 timeline 時才算出
+  let act4At = Infinity
 
   // 背景大圖的科技感切角進度（0=矩形 → 1=完整切角），由主 timeline 補間：第二幕長出、第三幕滿版時收回
   const cornerProgress = ref(0)
@@ -89,21 +111,28 @@
     const panel = panelRef.value
     if (!panel) return
 
-    // 開始下捲 → 左上亂碼解散、右下標題 line-reveal 退場；捲回頂端 → 還原
+    // 第一幕停留結束、開始轉場 → 左上亂碼解散、右下標題 line-reveal 退場；捲回第一幕 → 還原
     syncGate(
       'header',
-      time > 0.02,
+      time > ACT2 + 0.02,
       () => (panel.scrambleOut(), panel.revealOut()),
       () => (panel.scrambleIn(), panel.revealIn())
     )
     // 右側 nameWrap Block Reveal + aboutText 解碼：只在第二幕期間顯示
-    syncGate('about', time > 0.02 && time < ACT3 + 0.05, panel.aboutIn, panel.aboutOut)
-    // 第三幕標題亂碼解碼
+    syncGate('about', time > ACT2 + 0.02 && time < ACT3 + 0.05, panel.aboutIn, panel.aboutOut)
+    // 第三幕標題亂碼解碼：只在第三幕期間顯示
     syncGate(
       'skills',
-      time > SKILLS,
+      time > SKILLS && time < act4At + 0.05,
       () => panel.skills?.enter(),
       () => panel.skills?.leave()
+    )
+    // 第四幕作品標題亂碼解碼：背景翻到側面、切換成作品卡片後
+    syncGate(
+      'works',
+      time > act4At + FLIP2 / 2,
+      () => panel.works?.enter(),
+      () => panel.works?.leave()
     )
 
     // 依「實際渲染透明度」切換 display（讀當前值而非進度，避開 scrub 延遲殘影）：
@@ -129,7 +158,8 @@
 
     // 所有動畫排在同一條主 timeline、由單一 ScrollTrigger 驅動。
     // 先排好補間、依總長設定捲動空間，最後才建立 ScrollTrigger（確保量測到正確的捲動範圍）
-    tl = gsap.timeline({ defaults: { ease: 'none', duration: 1 }, paused: true })
+    // defaults.duration 只作用於未指定長度的第二幕轉場補間（其餘補間皆明確指定 duration）
+    tl = gsap.timeline({ defaults: { ease: 'none', duration: ACT2_IN }, paused: true })
 
     // 注意：因 invalidateOnRefresh，視窗尺寸變更時補間會重新記錄起始值。
     // 若用 .to()，在捲動途中 resize 會把「當下的中間狀態」誤記為起點，回捲時就無法還原，
@@ -146,23 +176,23 @@
           left: () => slotRect().left,
           bottom: () => window.innerHeight - slotRect().bottom
         },
-        0
+        ACT2
       )
       // 背景大圖長出科技感切角、Panel 配色 白 → 黑
-      .fromTo(cornerProgress, { value: 0 }, { value: 1 }, 0)
-      .fromTo(themeProgress, { value: 0 }, { value: 1 }, 0)
+      .fromTo(cornerProgress, { value: 0 }, { value: 1 }, ACT2)
+      .fromTo(themeProgress, { value: 0 }, { value: 1 }, ACT2)
       // 左上 profile 文字：淡出
-      .fromTo(refs?.headerText, { opacity: 1 }, { opacity: 0 }, 0)
+      .fromTo(refs?.headerText, { opacity: 1 }, { opacity: 0 }, ACT2)
       // 角色欄整體淡入
-      .fromTo(refs?.characterWrap, { opacity: 0 }, { opacity: 1 }, 0)
+      .fromTo(refs?.characterWrap, { opacity: 0 }, { opacity: 1 }, ACT2)
       // 角色卡片：以中心為軸翻轉進入
       .fromTo(
         refs?.characterCard,
         { rotationY: -180, opacity: 0 },
         { rotationY: 0, opacity: 1, transformOrigin: 'center' },
-        0
+        ACT2
       )
-      .fromTo(refs?.aboutWrap, { opacity: 0 }, { opacity: 1 }, 0)
+      .fromTo(refs?.aboutWrap, { opacity: 0 }, { opacity: 1 }, ACT2)
 
       // ── 第三幕：第二幕內容退場 ──
       // 角色卡片沿同方向繼續翻出、角色欄與右側區塊淡出
@@ -197,10 +227,59 @@
       .fromTo(bgShade.value, { opacity: 0 }, { opacity: 1, duration: FLIP / 2 }, FLIP_MID)
 
     // ── 第三幕：技能矩陣 + 時間軸進場（行動版另含內容上移，timeline 較長）──
-    panelRef.value?.skills?.addTo(tl, SKILLS, isMobile, (window.innerHeight * VH_PER_UNIT) / 100)
+    const panel = panelRef.value
+    panel?.skills?.addTo(tl, SKILLS, isMobile, (window.innerHeight * VH_PER_UNIT) / 100)
 
-    // 結尾停留，讓第三幕內容完整呈現後還有一段捲動空間
-    tl.to({}, { duration: 0.4 })
+    // 第三幕內容進場完畢 → 停留 → 第四幕轉場
+    const act3End = tl.duration()
+    const ACT4 = act3End + ACT3_HOLD
+    const FLIP2_MID = ACT4 + FLIP2 / 2 // 翻到 270°（側面）的時間點：背面（第三幕）切換成作品卡片
+    act4At = ACT4
+    panel?.skills?.addOutro(tl, act3End, ACT4, isMobile)
+
+    // 第三幕背景視差：背面一出現就開始，直到翻轉到側面被換掉為止，背景圖持續緩慢上移
+    tl.fromTo(
+      bgParallax.value,
+      { yPercent: 0 },
+      { yPercent: -PARALLAX_SHIFT, duration: FLIP2_MID - FLIP_MID, immediateRender: false },
+      FLIP_MID
+    )
+
+    // ── 第四幕：滿版背景沿同方向繼續翻轉（180° → 360°）並縮進中央作品卡片 ──
+    const workRect = () => panel!.works!.slotRect()
+    tl.fromTo(
+      bgWrap.value,
+      { width: () => window.innerWidth, height: () => window.innerHeight, left: 0, bottom: 0 },
+      {
+        width: () => workRect().width,
+        height: () => workRect().height,
+        left: () => workRect().left,
+        bottom: () => window.innerHeight - workRect().bottom,
+        duration: FLIP2,
+        ease: 'power2.inOut',
+        immediateRender: false
+      },
+      ACT4
+    )
+      .fromTo(
+        bgCard.value,
+        { rotationY: 180 },
+        { rotationY: 360, duration: FLIP2, ease: 'power2.inOut', immediateRender: false },
+        ACT4
+      )
+      // 縮小時露出淺色底 → Panel 配色 白 → 黑；背景遮罩隨之淡出
+      .fromTo(themeProgress, { value: 0 }, { value: 1, duration: FLIP2 / 2, immediateRender: false }, ACT4)
+      .fromTo(bgShade.value, { opacity: 1 }, { opacity: 0, duration: FLIP2 / 2, immediateRender: false }, ACT4)
+      // 翻到側面的瞬間：背面（第三幕背景）隱藏、正面換成作品卡片，並重新長出科技感切角
+      .fromTo(bgBack.value, { autoAlpha: 1 }, { autoAlpha: 0, duration: 0, immediateRender: false }, FLIP2_MID)
+      .fromTo(bgWork.value, { autoAlpha: 0 }, { autoAlpha: 1, duration: 0, immediateRender: false }, FLIP2_MID)
+      .fromTo(cornerProgress, { value: 0 }, { value: 1, duration: FLIP2 / 2, immediateRender: false }, FLIP2_MID)
+
+    // 第四幕作品資訊進場
+    panel?.works?.addTo(tl, FLIP2_MID)
+
+    // 第四幕停留
+    tl.to({}, { duration: ACT4_HOLD })
 
     // 捲動空間 = timeline 總長換算的捲動距離 + 一個視窗高（各斷點的每段捲動手感一致）
     if (spacer.value) spacer.value.style.height = `${tl.duration() * VH_PER_UNIT + 100}vh`
@@ -288,17 +367,38 @@
             :bottom-left="bgCorners.bottomLeft"
             class="w-full h-full"
           >
-            <img
-              :src="stagePic"
-              alt="skills background"
-              class="w-full h-full object-cover will-change-transform"
-              :style="{ transform: tiltStyle }"
-            />
+            <!-- 視差層：比畫框高 30%，第三幕期間隨捲動緩慢上移（露出圖片下半部） -->
+            <div ref="bgParallax" class="absolute inset-x-0 top-0 h-[130%]">
+              <img
+                :src="stagePic"
+                alt="skills background"
+                class="w-full h-full object-cover will-change-transform"
+                :style="{ transform: tiltStyle }"
+              />
+            </div>
             <!-- 壓暗遮罩：讓第三幕白字可讀（行動版文字滿寬，改為均勻壓暗） -->
             <div
               ref="bgShade"
               class="absolute inset-0 bg-linear-to-r from-black/75 via-black/55 to-black/35 max-md:bg-none max-md:bg-black/65 opacity-0"
             ></div>
+          </TechFrame>
+        </div>
+        <!-- 第四幕作品卡片：與正面同向（卡片翻到 360° 時正好轉正），翻到 270° 側面時才顯示 -->
+        <div ref="bgWork" class="absolute inset-0 invisible opacity-0">
+          <TechFrame
+            :strokeWidth="0"
+            :top-left="bgCorners.topLeft"
+            :top-right="bgCorners.topRight"
+            :bottom-right="bgCorners.bottomRight"
+            :bottom-left="bgCorners.bottomLeft"
+            class="w-full h-full"
+          >
+            <img
+              :src="workPic"
+              alt="featured work"
+              class="w-full h-full object-cover will-change-transform"
+              :style="{ transform: tiltStyle }"
+            />
           </TechFrame>
         </div>
       </div>

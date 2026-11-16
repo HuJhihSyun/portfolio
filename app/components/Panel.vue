@@ -1,7 +1,7 @@
 <script setup lang="ts">
   import { ref, reactive, nextTick, onMounted, onBeforeUnmount } from 'vue'
   import type gsap from 'gsap'
-  import characterPic from '@/assets/images/character.jpg'
+  import aboutPic from '@/assets/images/about.webp'
 
   const menuList = ref<{ label: string }[]>([
     { label: 'About' },
@@ -99,11 +99,11 @@
         <!-- 第一幕：行動版文字與標題改為滿寬，上下分置避免重疊 -->
         <article
           ref="headerText"
-          class="w-full md:w-1/2 leading-relaxed text-sm md:leading-normal p-4 md:p-6"
+          class="hero-shadow w-full md:w-1/2 leading-relaxed text-sm md:leading-normal p-4 md:p-6"
           v-html="profileOutput"
         ></article>
         <article
-          class="absolute flex flex-col items-end right-0 bottom-0 w-full md:w-1/2 text-5xl md:text-7xl lg:text-8xl [@media(max-height:500px)]:text-5xl text-right p-4 md:p-6 leading-none"
+          class="hero-shadow absolute flex flex-col items-end right-0 bottom-0 w-full md:w-1/2 text-5xl md:text-7xl lg:text-8xl [@media(max-height:500px)]:text-5xl text-right p-4 md:p-6 leading-none"
         >
           <h2
             v-for="(item, index) in mainTitle"
@@ -132,8 +132,8 @@
                 class="w-full h-full"
               >
                 <img
-                  :src="characterPic"
-                  alt="character"
+                  :src="aboutPic"
+                  alt="about"
                   class="will-change-transform"
                   :style="{ transform: characterTilt }"
                 />
@@ -196,6 +196,14 @@
   .panel-chip {
     background: var(--panel-fg, #fff);
     color: var(--panel-bg, #000);
+  }
+
+  /* 第一幕文字壓在主視覺上：加背景色陰影（近身陰影勾邊 + 大範圍柔光壓暗），避免與圖片重疊時看不清。
+     陰影色取 --panel-bg，配色補間到第二幕時跟著反轉，不會在黑字周圍留下黑影 */
+  .hero-shadow {
+    text-shadow:
+      0 1px 2px color-mix(in srgb, var(--panel-bg, #000) 70%, transparent),
+      0 0 16px color-mix(in srgb, var(--panel-bg, #000) 55%, transparent);
   }
 
   /* 讓亂碼中（尚未確定）的字元稍微變淡，強調雜訊感 */

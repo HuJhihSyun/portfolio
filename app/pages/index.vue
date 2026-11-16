@@ -3,9 +3,11 @@
   import gsap from 'gsap'
   import { ScrollTrigger } from 'gsap/ScrollTrigger'
 
-  import mainPic from '@/assets/images/main.png'
-  // 第三幕滿版背景（TODO: 換成專屬的第三幕視覺；直式長圖的視差效果最明顯，目前暫用主視覺）
-  import stagePic from '@/assets/images/main.png'
+  // 第一幕主視覺：桌機橫式 / 行動版直式各一張（以 <picture> 依斷點切換）
+  import bannerPc from '@/assets/images/banner1-pc.webp'
+  import bannerM from '@/assets/images/banner1-m.webp'
+  // 第三幕滿版背景（近正方形 1182×1330，視差層高 130% 時上下仍有餘裕可位移）
+  import stagePic from '@/assets/images/main.webp'
 
   gsap.registerPlugin(ScrollTrigger)
 
@@ -50,14 +52,14 @@
 
   // 主 timeline 的分段（timeline 時間單位；1 單位 = VH_PER_UNIT 的捲動距離，目前為 50vh）
   // 各幕「停留」為畫面不變、只消耗捲動距離的區段，讓使用者有時間閱讀；要調整節奏改這裡即可
-  const INTRO_HOLD = 0.4 // 第一幕停留：開始捲動後先維持主視覺一小段，才進入轉場
-  const ACT2_IN = 1 // 第一 → 二幕轉場：大圖縮成小圖、角色卡片翻入
-  const ACT2_HOLD = 2 // 第二幕停留（約一個畫面高的捲動距離），讓自我介紹有時間讀完
-  const FLIP = 1.2 // 第二 → 三幕轉場：小圖立體翻轉 + 放大至滿版
-  const ACT3_HOLD = 1.6 // 第三幕內容全部進場後的停留（背景持續視差位移）
-  const FLIP2 = 1.2 // 第三 → 四幕轉場：滿版背景反向翻轉、縮成中央作品卡片
-  const WORKS_SCROLL = 3 // 第四幕作品輪播：兩列卡片隨捲動往相反方向位移的長度
-  const END_HOLD = 0.4 // 輪播走完後的結尾停留
+  const INTRO_HOLD = 0.8 // 第一幕停留：開始捲動後先維持主視覺一小段，才進入轉場
+  const ACT2_IN = 1.3 // 第一 → 二幕轉場：大圖縮成小圖、角色卡片翻入
+  const ACT2_HOLD = 3 // 第二幕停留（約一個半畫面高的捲動距離），讓自我介紹有時間讀完
+  const FLIP = 1.5 // 第二 → 三幕轉場：小圖立體翻轉 + 放大至滿版
+  const ACT3_HOLD = 2.6 // 第三幕內容全部進場後的停留（背景持續視差位移）
+  const FLIP2 = 1.5 // 第三 → 四幕轉場：滿版背景反向翻轉、縮成中央作品卡片
+  const WORKS_SCROLL = 4.5 // 第四幕作品輪播：兩列卡片隨捲動往相反方向位移的長度
+  const END_HOLD = 0.8 // 輪播走完後的結尾停留
   const PARALLAX_SHIFT = 23 // 第三幕背景視差位移量（視差層 yPercent；視差層高 130%，最多可移約 23%）
 
   const ACT2 = INTRO_HOLD // 第二幕轉場起點
@@ -345,12 +347,16 @@
             :bottom-left="bgCorners.bottomLeft"
             class="w-full h-full"
           >
-            <img
-              :src="mainPic"
-              alt="main"
-              class="w-full h-full object-cover will-change-transform"
-              :style="{ transform: tiltStyle }"
-            />
+            <!-- 行動版（< md，對應 Tailwind 768px 斷點）載入直式圖，其餘載入橫式圖；瀏覽器只會下載符合的那一張 -->
+            <picture class="block w-full h-full">
+              <source media="(max-width: 767px)" :srcset="bannerM" />
+              <img
+                :src="bannerPc"
+                alt="main"
+                class="w-full h-full object-cover will-change-transform"
+                :style="{ transform: tiltStyle }"
+              />
+            </picture>
           </TechFrame>
         </div>
         <!-- 背面：第三幕滿版背景（預先翻 180°，卡片翻完後正好轉正；翻到側面前保持隱藏） -->

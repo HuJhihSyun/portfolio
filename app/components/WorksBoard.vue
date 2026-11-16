@@ -189,7 +189,7 @@
     const travelA = travel(trackEls[0] ?? null)
     const travelB = travel(trackEls[1] ?? null)
     const axis = isMobile ? 'x' : 'y'
-    const moveAt = at + 0.6
+    const moveAt = at + 1 // 進場動畫播完後稍作停留，才開始輪播
 
     tl
       // 整塊顯現

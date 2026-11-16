@@ -109,16 +109,16 @@
       // 整塊顯現
       .fromTo(root.value, { autoAlpha: 0 }, { autoAlpha: 1, duration: 0.2 }, at)
       // 技能分組由下往上依序浮現
-      .fromTo(groupEls.value, { autoAlpha: 0, y: 24 }, { autoAlpha: 1, y: 0, duration: 0.4, stagger: 0.1 }, at)
+      .fromTo(groupEls.value, { autoAlpha: 0, y: 24 }, { autoAlpha: 1, y: 0, duration: 0.5, stagger: 0.15 }, at)
       // 進度條由左往右填滿
-      .fromTo(fillEls.value, { scaleX: 0 }, { scaleX: 1, duration: 0.5, stagger: 0.04, ease: 'power2.out' }, at + 0.15)
+      .fromTo(fillEls.value, { scaleX: 0 }, { scaleX: 1, duration: 0.7, stagger: 0.05, ease: 'power2.out' }, at + 0.2)
 
     if (!isMobile) {
       // 時間軸：直線由上往下畫出，各節點依序出現
-      tl.fromTo(lineEl.value, { scaleY: 0 }, { scaleY: 1, duration: 1 }, at).fromTo(
+      tl.fromTo(lineEl.value, { scaleY: 0 }, { scaleY: 1, duration: 1.5 }, at).fromTo(
         stepEls.value,
         { autoAlpha: 0, x: 16 },
-        { autoAlpha: 1, x: 0, duration: 0.25, stagger: 0.25 },
+        { autoAlpha: 1, x: 0, duration: 0.3, stagger: 0.38 },
         at + 0.05
       )
       return
@@ -129,8 +129,8 @@
     const overflow = () => Math.max(0, (content.value?.offsetHeight ?? 0) - (root.value?.clientHeight ?? 0))
     // 上移段落的長度依建立當下的溢出高度換算，內容移動速度與捲動同步（至少 1 單位）
     const scrollLen = unitPx > 0 ? Math.max(1, overflow() / unitPx) : 1.6
-    // 技能進度條填滿（約 at + 1.1）後先停留一小段讓使用者閱讀，才開始上移
-    const scrollAt = at + 1.5
+    // 技能進度條填滿（約 at + 1.6）後先停留一小段讓使用者閱讀，才開始上移
+    const scrollAt = at + 2.2
     tl.fromTo(content.value, { y: 0 }, { y: () => -overflow(), duration: scrollLen }, scrollAt)
       // 時間軸直線與內容上移同步畫出，節點依捲入畫面的順序出現
       .fromTo(lineEl.value, { scaleY: 0 }, { scaleY: 1, duration: scrollLen }, scrollAt)

@@ -3,12 +3,15 @@
   import type gsap from 'gsap'
   import aboutPic from '@/assets/images/about.webp'
 
-  const menuList = ref<{ label: string }[]>([
-    { label: 'About' },
-    { label: 'Skills' },
-    { label: 'Works' },
-    { label: 'Contact' }
-  ])
+  // 頂部選單：點擊後通知父層（index.vue）捲到對應區塊（key 對應 index.vue 的 sectionTimes）
+  type SectionKey = 'about' | 'skills' | 'works' | 'contact'
+  const emit = defineEmits<{ navigate: [key: SectionKey] }>()
+  const menuList: { label: string; key: SectionKey }[] = [
+    { label: 'About', key: 'about' },
+    { label: 'Skills', key: 'skills' },
+    { label: 'Works', key: 'works' },
+    { label: 'Contact', key: 'contact' }
+  ]
 
   // 側選單開關（漢堡按鈕開啟，SideMenu 內的關閉鈕 / 遮罩 / Esc 關閉）
   const menuOpen = ref(false)
@@ -64,13 +67,21 @@
   // 第四幕：精選作品（輪播外框落點 + 捲動補間，由 index.vue 的主 timeline 透過 works.addTo() 接入）
   const works = ref<{
     addTo: (tl: gsap.core.Timeline, at: number, scrollLen: number, isMobile?: boolean) => void
+    addOutro: (tl: gsap.core.Timeline, at: number) => void
     enter: () => void
     leave: () => void
     slotRect: () => DOMRect
   } | null>(null)
 
+  // 第五幕：聯絡 / Footer（捲動補間由 index.vue 的主 timeline 透過 contact.addTo() 接入）
+  const contact = ref<{
+    addTo: (tl: gsap.core.Timeline, at: number, unitPx?: number) => void
+    enter: () => void
+    leave: () => void
+  } | null>(null)
+
   // 暴露給父層（index.vue）呼叫
-  defineExpose({ enter, scrambleOut, scrambleIn, revealOut, revealIn, aboutIn, aboutOut, skills, works })
+  defineExpose({ enter, scrambleOut, scrambleIn, revealOut, revealIn, aboutIn, aboutOut, skills, works, contact })
 </script>
 
 <template>
@@ -85,8 +96,8 @@
       <!-- 行動版寬度不足以放下選單，先隱藏（待選單有實際連結後再改為漢堡選單） -->
       <nav class="hidden md:flex w-full justify-center items-center text-xs px-6 py-3">
         <ul class="flex justify-center items-center gap-6 lg:gap-8 text-xs">
-          <li v-for="item in menuList" :key="item.label">
-            {{ item.label }}
+          <li v-for="item in menuList" :key="item.key">
+            <button type="button" class="nav-link" @click="emit('navigate', item.key)">{{ item.label }}</button>
           </li>
         </ul>
       </nav>
@@ -95,7 +106,8 @@
       </span>
     </div>
     <div class="middle w-full flex-1 min-h-0 flex justify-center items-center">
-      <main class="relative w-full h-full overflow-hidden">
+      <!-- overflow-clip（而非 hidden）：第五幕表單欄位取得焦點時，瀏覽器不會自行捲動 main 而打亂 timeline 控制的版面 -->
+      <main class="relative w-full h-full overflow-clip">
         <!-- 第一幕：行動版文字與標題改為滿寬，上下分置避免重疊 -->
         <article
           ref="headerText"
@@ -131,12 +143,7 @@
                 :bottom-left="{ type: 'notch', size: '50%', depth: '24px', radius: '12px', orientation: 'vertical' }"
                 class="w-full h-full"
               >
-                <img
-                  :src="aboutPic"
-                  alt="about"
-                  class="will-change-transform"
-                  :style="{ transform: characterTilt }"
-                />
+                <img :src="aboutPic" alt="about" class="will-change-transform" :style="{ transform: characterTilt }" />
               </TechFrame>
             </div>
           </div>
@@ -168,6 +175,7 @@
         ></div>
         <SkillsBoard ref="skills" />
         <WorksBoard ref="works" />
+        <ContactBoard ref="contact" />
       </main>
       <div class="p-line h-full text-xs px-3 py-3 flex justify-center items-center whitespace-nowrap border-l-[0.5px]">
         <span class="text-[11px] leading-5 md:leading-8 md:text-xs font-normal [writing-mode:vertical-rl]"
@@ -190,6 +198,34 @@
   /* 內部各分隔線 */
   .p-line {
     border-color: var(--panel-line, rgb(255 255 255 / 0.5));
+  }
+
+  /* 頂部選單：hover 時底線由左往右畫出 */
+  .nav-link {
+    position: relative;
+    cursor: pointer;
+
+    &::after {
+      content: '';
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: -3px;
+      height: 1px;
+      background: currentColor;
+      transform: scaleX(0);
+      transform-origin: left;
+      transition: transform 0.3s cubic-bezier(0.7, 0, 0.3, 1);
+    }
+
+    &:hover::after,
+    &:focus-visible::after {
+      transform: scaleX(1);
+    }
+
+    &:focus-visible {
+      outline: none;
+    }
   }
 
   /* 反白的 My Portfolio 標籤：底色 = 前景色、文字 = 背景色 */

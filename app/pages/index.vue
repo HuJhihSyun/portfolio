@@ -21,6 +21,7 @@
   const bgBack = ref<HTMLElement | null>(null)
   const bgShade = ref<HTMLElement | null>(null)
   const bgParallax = ref<HTMLElement | null>(null)
+  const endBg = ref<HTMLElement | null>(null) // 第五幕深色底
   const panelRef = ref<{
     enter: () => void
     scrambleOut: () => void
@@ -37,9 +38,15 @@
     } | null
     works: {
       addTo: (tl: gsap.core.Timeline, at: number, scrollLen: number, isMobile?: boolean) => void
+      addOutro: (tl: gsap.core.Timeline, at: number) => void
       enter: () => void
       leave: () => void
       slotRect: () => DOMRect
+    } | null
+    contact: {
+      addTo: (tl: gsap.core.Timeline, at: number, unitPx?: number) => void
+      enter: () => void
+      leave: () => void
     } | null
     $refs: {
       headerText: HTMLElement
@@ -59,15 +66,18 @@
   const ACT3_HOLD = 2.6 // 第三幕內容全部進場後的停留（背景持續視差位移）
   const FLIP2 = 1.5 // 第三 → 四幕轉場：滿版背景反向翻轉、縮成中央作品卡片
   const WORKS_SCROLL = 4.5 // 第四幕作品輪播：兩列卡片隨捲動往相反方向位移的長度
-  const END_HOLD = 0.8 // 輪播走完後的結尾停留
+  const ACT4_HOLD = 0.8 // 第四幕輪播走完後的停留
+  const ACT5_IN = 1.2 // 第四 → 五幕轉場：作品區退場、深色底升起、Panel 配色 黑 → 白
+  const END_HOLD = 1.2 // 第五幕內容全部進場後的結尾停留（頁面終點）
   const PARALLAX_SHIFT = 23 // 第三幕背景視差位移量（視差層 yPercent；視差層高 130%，最多可移約 23%）
 
   const ACT2 = INTRO_HOLD // 第二幕轉場起點
   const ACT3 = ACT2 + ACT2_IN + ACT2_HOLD // 第三幕轉場起點
   const FLIP_MID = ACT3 + FLIP / 2 // 翻到 90°（側面）的時間點：正反面在此切換
   const SKILLS = ACT3 + FLIP // 技能矩陣 / 時間軸進場起點
-  // 第四幕轉場起點：第三幕內容長度依斷點不同（行動版含內容上移），於建立 timeline 時才算出
+  // 第四 / 五幕轉場起點：前一幕內容長度依斷點不同（行動版含內容上移），於建立 timeline 時才算出
   let act4At = Infinity
+  let act5At = Infinity
 
   // 背景大圖的科技感切角進度（0=矩形 → 1=完整切角），由主 timeline 補間：第二幕長出、第三幕滿版時收回
   const cornerProgress = ref(0)
@@ -130,9 +140,16 @@
     // 第四幕作品標題亂碼解碼：背景翻到側面、切換成作品卡片後
     syncGate(
       'works',
-      time > act4At + FLIP2 / 2,
+      time > act4At + FLIP2 / 2 && time < act5At + 0.05,
       () => panel.works?.enter(),
       () => panel.works?.leave()
+    )
+    // 第五幕標題 / 終端機訊息解碼：深色底升起一半後
+    syncGate(
+      'contact',
+      time > act5At + ACT5_IN / 2,
+      () => panel.contact?.enter(),
+      () => panel.contact?.leave()
     )
 
     // 依「實際渲染透明度」切換 display（讀當前值而非進度，避開 scrub 延遲殘影）：
@@ -147,12 +164,26 @@
   const LOADING_DELAY = 3000 // 開場 loading 動畫時長（ms），捲動動畫延遲同樣時間再建立
   const VH_PER_UNIT = 50 // 每 1 單位 timeline 時間對應的捲動距離（vh），捲動空間依 timeline 總長換算
   let tl: gsap.core.Timeline | null = null
+  let trigger: ScrollTrigger | null = null
   let mm: gsap.MatchMedia | null = null
+
+  // 各區塊「內容完整進場」的 timeline 時間點：頂部選單點擊後捲到這裡（內容長度依斷點不同，於建立 timeline 時才算出）
+  type SectionKey = 'about' | 'skills' | 'works' | 'contact'
+  const sectionTimes: Partial<Record<SectionKey, number>> = {}
+
+  // 頂部選單：把區塊的 timeline 時間換算成捲動位置後平滑捲過去（scrub 會順著播完沿途的轉場）
+  const scrollToSection = (key: SectionKey) => {
+    const time = sectionTimes[key]
+    if (!tl || !trigger || time === undefined) return // 開場 loading 期間 timeline 尚未建立
+    const top = trigger.start + (time / tl.duration()) * (trigger.end - trigger.start)
+    window.scrollTo({ top, behavior: 'smooth' })
+  }
   let startTimer: ReturnType<typeof setTimeout> | null = null
 
   // 依斷點建立主 timeline（由 gsap.matchMedia 呼叫；跨越斷點時自動 revert 舊的並重建）
   const buildTimeline = (isMobile: boolean) => {
     const refs = panelRef.value?.$refs
+    sectionTimes.about = ACT2 + ACT2_IN + 0.3 // 第二幕轉場完成後稍往前一點，讓名字 Block Reveal 與自我介紹解碼完整播出
     // 第二幕小圖落點（視窗座標）；以函式值傳給補間，搭配 invalidateOnRefresh 在視窗尺寸變更時重新量測
     const slotRect = () => refs!.bgSlot.getBoundingClientRect()
 
@@ -232,6 +263,8 @@
 
     // 第三幕內容進場完畢 → 停留 → 第四幕轉場
     const act3End = tl.duration()
+    // 第三幕落點：桌機版取內容全部進場的時間點；行動版內容進場後會再上移，改取上移前（技能矩陣完整顯示）
+    sectionTimes.skills = isMobile ? SKILLS + 1.8 : act3End
     const ACT4 = act3End + ACT3_HOLD
     const FLIP2_MID = ACT4 + FLIP2 / 2 // 翻到 270°（側面）的時間點：背面（第三幕）切換成作品卡片
     act4At = ACT4
@@ -275,14 +308,28 @@
 
     // 第四幕：區塊資訊進場 + 作品輪播（兩列隨捲動往相反方向位移）
     panel?.works?.addTo(tl, FLIP2_MID, WORKS_SCROLL, isMobile)
+    sectionTimes.works = FLIP2_MID + 1 // 作品區進場完成、輪播開始位移前（對應 WorksBoard 的 moveAt）
+
+    // ── 第五幕：作品區退場 → 深色底升起、Panel 配色 黑 → 白 → 聯絡 / Footer 進場 ──
+    const ACT5 = tl.duration() + ACT4_HOLD
+    act5At = ACT5
+    panel?.works?.addOutro(tl, ACT5)
+    tl.fromTo(endBg.value, { autoAlpha: 0 }, { autoAlpha: 1, duration: ACT5_IN, ease: 'power1.inOut' }, ACT5).fromTo(
+      themeProgress,
+      { value: 1 },
+      { value: 0, duration: ACT5_IN, immediateRender: false },
+      ACT5
+    )
+    panel?.contact?.addTo(tl, ACT5 + ACT5_IN / 2, (window.innerHeight * VH_PER_UNIT) / 100)
 
     // 結尾停留
     tl.to({}, { duration: END_HOLD })
+    sectionTimes.contact = tl.duration() // 第五幕為頁面終點：直接捲到底
 
     // 捲動空間 = timeline 總長換算的捲動距離 + 一個視窗高（各斷點的每段捲動手感一致）
     if (spacer.value) spacer.value.style.height = `${tl.duration() * VH_PER_UNIT + 100}vh`
 
-    const trigger = ScrollTrigger.create({
+    trigger = ScrollTrigger.create({
       animation: tl,
       trigger: root.value,
       start: 'top top',
@@ -329,7 +376,7 @@
 <template>
   <div ref="root" class="w-full">
     <div class="relative w-full p-3 md:p-6 z-10" :style="panelTheme">
-      <Panel ref="panelRef" />
+      <Panel ref="panelRef" @navigate="scrollToSection" />
     </div>
 
     <!-- 背景大圖：固定定位，往下捲時縮成右下角小圖並長出科技感切角（第二幕），
@@ -387,6 +434,9 @@
         </div>
       </div>
     </div>
+
+    <!-- 第五幕深色底：疊在背景大圖之上、Panel 之下，作品區退場時淡入（呼應 kprverse 的黑色 footer） -->
+    <div ref="endBg" class="fixed inset-0 z-[5] bg-[#0b0b0b] invisible opacity-0"></div>
 
     <!-- 製造捲動距離（初始高度供 timeline 建立前使用，建立後依 timeline 總長改寫） -->
     <section ref="spacer" class="relative z-10 h-[300vh] pointer-events-none"></section>

@@ -223,10 +223,15 @@
       .fromTo(trackEls[1]!, { [axis]: () => -travelB() }, { [axis]: 0, duration: scrollLen }, moveAt)
   }
 
+  // 第四幕退場：整塊上移淡出，交棒給第五幕
+  const addOutro = (tl: gsap.core.Timeline, at: number) => {
+    tl.fromTo(root.value, { autoAlpha: 1, y: 0 }, { autoAlpha: 0, y: -40, duration: 0.6, immediateRender: false }, at)
+  }
+
   const enter = () => setText(summary.title) // 區塊標題亂數解碼進場
   const leave = () => setText('') // 標題亂碼解散
 
-  defineExpose({ addTo, enter, leave, slotRect })
+  defineExpose({ addTo, addOutro, enter, leave, slotRect })
 </script>
 
 <template>

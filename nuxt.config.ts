@@ -38,5 +38,15 @@ export default defineNuxtConfig({
     }
   },
 
+  // 伺服器端私密設定（只在 server/ 內可讀取，不會送到瀏覽器）。
+  // 實際值由環境變數覆寫：NUXT_MAIL_USER / NUXT_MAIL_PASS / NUXT_MAIL_TO（見 .env.example）
+  runtimeConfig: {
+    mail: {
+      user: '', // 寄件的 Gmail 帳號
+      pass: '', // Gmail 應用程式密碼（非登入密碼）
+      to: '' // 收件信箱；未設定時寄給 user 自己
+    }
+  },
+
   modules: ['nuxt-svgo-loader']
 })

@@ -177,10 +177,15 @@
         <WorksBoard ref="works" />
         <ContactBoard ref="contact" />
       </main>
-      <div class="p-line h-full text-xs px-3 py-3 flex justify-center items-center whitespace-nowrap border-l-[0.5px]">
-        <span class="text-[11px] leading-5 md:leading-8 md:text-xs font-normal [writing-mode:vertical-rl]"
-          >Side Project by Syun</span
-        >
+      <div class="p-line h-full text-xs px-3 py-3 flex flex-col items-center whitespace-nowrap border-l-[0.5px]">
+        <div class="flex flex-1 items-center justify-center">
+          <span class="text-[11px] leading-5 md:leading-8 md:text-xs font-normal [writing-mode:vertical-rl] uppercase"
+            >Side Project by Syun</span
+          >
+        </div>
+        <!-- 底部補上與頂部選單列等高的空白：上下扣除的高度相同，文字便置中於整個 Panel 高度，
+             與側選單窄欄（滿高、文字置中）的同一行字對齊 -->
+        <span class="h-[41px] shrink-0" aria-hidden="true"></span>
       </div>
     </div>
     <SideMenu v-model:open="menuOpen" />

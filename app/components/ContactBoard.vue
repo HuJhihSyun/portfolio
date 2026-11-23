@@ -2,6 +2,7 @@
   import { ref, reactive, onBeforeUnmount } from 'vue'
   import type gsap from 'gsap'
   import { CONTACT_LIMITS, CONTACT_TOPICS, type ContactPayload } from '#shared/contact'
+  import { CAREER_LINKS, CONTACT, SOCIAL_LINKS } from '#shared/profile'
 
   /**
    * ContactBoard：第五幕「聯絡 / Footer」（版面參考 kprverse 的 footer）。
@@ -11,31 +12,10 @@
 
   type HackyTextExpose = { play: (delay?: number) => void; hide: () => void }
 
-  interface LinkItem {
-    label: string
-    url: string
-  }
-
-  const careerLinks: LinkItem[] = [
-    { label: 'Yourator', url: 'https://www.yourator.co/resumes/5bea676ce3e10aea4b8516def501135d' },
-    { label: 'CakeResume', url: 'https://www.cake.me/cj654vmp' },
-    { label: 'CakeResume Portfolio', url: 'https://www.cake.me/me/cj654vmp/portfolios?ref=dashboard_navs_portfolio' },
-    { label: 'Behance', url: 'https://www.behance.net/cj654vmp2069' },
-    { label: 'GitHub', url: 'https://github.com/HuJhihSyun' }
-  ]
-
-  const socialLinks: LinkItem[] = [
-    { label: 'Facebook', url: 'https://www.facebook.com/jhihsyun.hu/' },
-    { label: 'Instagram', url: 'https://www.instagram.com/hujhihsyun/' },
-    { label: 'LinkedIn', url: 'https://www.linkedin.com/in/jhih-syun-hu-339b4b172/' },
-    { label: 'LINE', url: 'https://line.me/ti/p/gUXVTpmfYh' }
-  ]
-
-  const contact = {
-    email: 'cj654vmp@gmail.com',
-    tel: '0988-565-853',
-    telHref: 'tel:+886988565853'
-  }
+  // 連結與聯絡資訊（與側選單共用，資料在 shared/profile.ts）
+  const careerLinks = CAREER_LINKS
+  const socialLinks = SOCIAL_LINKS
+  const contact = CONTACT
 
   // 左上終端機訊息（進場時逐行解碼）
   const consoleLines = [

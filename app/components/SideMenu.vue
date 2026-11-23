@@ -1,6 +1,7 @@
 <script setup lang="ts">
   import { ref, watch, nextTick, onMounted, onBeforeUnmount } from 'vue'
   import gsap from 'gsap'
+  import { CAREER_LINKS, SOCIAL_LINKS } from '#shared/profile'
 
   type HackyTextExpose = { play: (delay?: number) => void; hide: () => void }
 
@@ -10,14 +11,18 @@
   // TODO: 目前尚無分頁，先放假資料；有分頁後改為實際路由並依目前頁面決定 active
   const navList = [
     { label: 'Home', page: '001' },
-    { label: 'About', page: '002' },
-    { label: 'Skills', page: '003' },
-    { label: 'Works', page: '004' },
-    { label: 'Lab', page: '005' },
-    { label: 'Contact', page: '006' }
+    { label: 'Articles', page: '002' },
+    { label: 'Gallery', page: '003' }
   ]
   const activeIndex = 0
-  const socialList = ['GitHub', 'LinkedIn', 'Dribbble']
+  // Connect 區塊的連結：取自 Footer 共用的連結資料（shared/profile.ts），依此順序排列
+  const SOCIAL_ORDER = ['GitHub', 'LinkedIn', 'Instagram', 'Facebook', 'LINE']
+  const socialList = SOCIAL_ORDER.map((label) => [...CAREER_LINKS, ...SOCIAL_LINKS].find((l) => l.label === label)!)
+
+  // 窄欄底部點陣的亮起順序：沿外圈順時針（左上 → 右上 → 右下 → 左下）走一圈，最後亮中心。
+  // 依格子索引換算每格的動畫延遲（每步 0.2s，九步剛好一個 1.8s 循環）
+  const DOT_ORDER = [0, 1, 2, 5, 8, 7, 6, 3, 4]
+  const DOT_DELAYS = Array.from({ length: 9 }, (_, i) => DOT_ORDER.indexOf(i) * 0.2)
 
   const visible = ref(false) // 實際的 display 狀態（關閉動畫播完才隱藏）
 
@@ -143,16 +148,16 @@
       @touchmove.prevent
     >
       <!-- 白色漸層遮罩：點擊關閉 -->
-      <div ref="underlay" class="absolute inset-0" @click="close">
+      <div ref="underlay" class="underlay absolute inset-0" @click="close">
         <div class="underlay-graphic absolute inset-0"></div>
       </div>
 
       <!-- 外框對齊 Panel（行動版距邊 12px、桌機 24px），由右側展開 -->
-      <div class="absolute top-3 right-3 bottom-3 md:top-6 md:right-6 md:bottom-6 flex text-white uppercase">
+      <div class="absolute top-3 right-3 bottom-3 md:top-6 md:right-6 md:bottom-6 flex text-white">
         <!-- 主面板 -->
         <div class="relative h-full w-[calc(100vw-24px-44px)] md:w-115 lg:w-135 overflow-hidden">
           <div ref="contentOuter" class="absolute inset-0 overflow-hidden">
-            <div ref="contentInner" class="absolute inset-0 flex flex-col bg-black rounded-l-lg md:rounded-l-xl">
+            <div ref="contentInner" class="glass absolute inset-0 flex flex-col rounded-l-lg md:rounded-l-xl">
               <!-- 選單 -->
               <div class="section flex-1 min-h-0 pt-6 md:pt-9">
                 <div class="section-left">
@@ -194,16 +199,17 @@
                 </div>
                 <div class="flex flex-col items-start gap-2">
                   <a
-                    v-for="(label, i) in socialList"
-                    :key="label"
-                    href="#"
+                    v-for="(link, i) in socialList"
+                    :key="link.label"
+                    :href="link.url"
+                    target="_blank"
+                    rel="noopener noreferrer"
                     class="link-hover"
                     @mouseenter="subTexts[i]?.play()"
-                    @click.prevent
                   >
                     <AtomsHackyText
                       :ref="(el) => (subTexts[i] = el as unknown as HackyTextExpose)"
-                      :text="label"
+                      :text="link.label"
                       hidden
                     />
                   </a>
@@ -246,18 +252,18 @@
           </div>
         </div>
 
-        <!-- 窄欄（最右側）：關閉鈕 / 標誌 / 裝飾等化器（寬度對齊 Panel 右側欄） -->
+        <!-- 窄欄（最右側）：關閉鈕 / 標誌 / 裝飾點陣（寬度對齊 Panel 右側欄） -->
         <div class="relative h-full w-11 md:w-14 shrink-0">
           <div ref="barOuter" class="absolute inset-0 overflow-hidden">
             <div
               ref="barInner"
-              class="absolute inset-0 flex flex-col items-center justify-center bg-black rounded-r-lg md:rounded-r-xl"
+              class="glass absolute inset-0 flex flex-col items-center justify-center rounded-r-lg md:rounded-r-xl"
             >
-              <span class="absolute inset-y-0 left-0 w-px bg-white/20"></span>
+              <span class="absolute inset-y-0 left-0 w-px bg-white/15"></span>
               <button
                 ref="closeBtn"
                 type="button"
-                class="btn-close absolute inset-x-0 top-0 h-10 grid place-items-center border-b border-white/20"
+                class="btn-close absolute inset-x-0 top-0 h-10 grid place-items-center border-b border-white/15"
                 aria-label="關閉選單"
                 @click="close"
               >
@@ -266,13 +272,14 @@
                   <path class="stroke-b" d="M11 1L1 11" />
                 </svg>
               </button>
-              <span class="text-[11px] leading-5 md:leading-8 md:text-xs font-normal [writing-mode:vertical-rl]"
+              <span
+                class="text-[11px] leading-5 md:leading-8 md:text-xs font-normal [writing-mode:vertical-rl] uppercase"
                 >Side Project by Syun</span
               >
-              <!-- 底部：裝飾用等化器 -->
+              <!-- 底部：裝飾用點陣掃描（九宮格沿外圈順時針依序亮起、最後亮中心） -->
               <div class="absolute inset-x-0 bottom-0 aspect-square grid place-items-center" aria-hidden="true">
-                <span class="eq flex items-center gap-0.5 h-3">
-                  <i v-for="n in 4" :key="n" :style="`--n: ${n}`"></i>
+                <span class="dot-scan">
+                  <i v-for="(delay, i) in DOT_DELAYS" :key="i" :style="{ animationDelay: `${delay}s` }"></i>
                 </span>
               </div>
             </div>
@@ -285,20 +292,49 @@
 
 <style lang="scss" scoped>
   .side-menu {
-    --menu-accent: #c0fb50; /* 目前頁面的高亮色 */
+    /* 目前頁面的高亮色：取自主視覺圖的鈷藍（#274796）提亮一階，在暗色玻璃上才夠顯眼 */
+    --menu-accent: #3d6af2;
+    --menu-accent-fg: #fff; /* 高亮底上的文字色 */
+    --menu-accent-soft: #9db6ff; /* 頁碼等小字（淺藍，在暗底上維持可讀） */
   }
 
-  /* 由選單側（右）往左漸淡的白色遮罩 */
+  /* 背景遮罩：輕微壓暗 + 微模糊（讓頁面略為失焦，但仍透得出來，毛玻璃面板才有東西可以霧化）。
+     backdrop-filter 放在 gsap 補間透明度的這一層本身：若放在子層，父層透明度 < 1 時會截斷背景取樣，淡入結束時模糊才突然出現 */
+  .underlay {
+    backdrop-filter: blur(3px);
+    -webkit-backdrop-filter: blur(3px);
+  }
+
   .underlay-graphic {
-    background: linear-gradient(270deg, #fff 28%, rgb(255 255 255 / 0.75));
-    opacity: 0.85;
+    background: linear-gradient(270deg, rgb(0 0 0 / 0.5) 20%, rgb(0 0 0 / 0.18));
   }
 
+  /* 毛玻璃面板（主面板與窄欄共用）：半透明深色底 + 強模糊與飽和度提升，
+     疊一層斜向光澤，並以內陰影畫出細高光描邊（上緣較亮，模擬玻璃邊緣的反光） */
+  .glass {
+    background:
+      linear-gradient(135deg, rgb(255 255 255 / 0.14), rgb(255 255 255 / 0.03) 40%, rgb(255 255 255 / 0.07)),
+      rgb(18 18 22 / 0.45);
+    backdrop-filter: blur(28px) saturate(170%);
+    -webkit-backdrop-filter: blur(28px) saturate(170%);
+    box-shadow:
+      inset 0 0 0 1px rgb(255 255 255 / 0.12),
+      inset 0 1px 0 rgb(255 255 255 / 0.28);
+  }
+
+  /* 不支援 backdrop-filter 的瀏覽器：退回接近不透明的深色底，確保文字可讀 */
+  @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+    .glass {
+      background: rgb(17 17 17 / 0.94);
+    }
+  }
+
+  /* 不在這裡設 align-items：flex 預設即為拉伸（選單區需要），
+     且 scoped 樣式權重高於 Tailwind，寫死會蓋掉模板上 items-center 的垂直置中 */
   .section {
     display: flex;
-    align-items: stretch;
     padding: 16px;
-    border-bottom: 1px solid rgb(255 255 255 / 0.2);
+    border-bottom: 1px solid rgb(255 255 255 / 0.14);
 
     &:last-child {
       border-bottom: 0;
@@ -408,11 +444,11 @@
       background: var(--menu-accent);
     }
     .menu-item-label {
-      color: #000;
+      color: var(--menu-accent-fg);
     }
     .menu-item-extra {
       opacity: 1;
-      color: var(--menu-accent);
+      color: var(--menu-accent-soft);
     }
   }
 
@@ -462,27 +498,37 @@
     outline-offset: -4px;
   }
 
-  /* 裝飾等化器：四條細線上下跳動 */
-  .eq i {
-    width: 1px;
-    height: 100%;
-    background: currentColor;
-    animation: eq 0.9s ease-in-out infinite alternate;
-    animation-delay: calc(var(--n) * -0.23s);
+  /* 裝飾點陣：3×3 方點依序亮起後漸暗（留下拖尾），呼應選單中「• Discover」等小方點標記 */
+  .dot-scan {
+    display: grid;
+    grid-template-columns: repeat(3, 3px);
+    gap: 3px;
+
+    i {
+      width: 3px;
+      height: 3px;
+      background: currentColor;
+      opacity: 0.15;
+      animation: dot-scan 1.8s ease-out infinite;
+      animation-fill-mode: backwards;
+    }
   }
 
-  @keyframes eq {
-    from {
-      transform: scaleY(0.3);
+  @keyframes dot-scan {
+    0%,
+    8% {
+      opacity: 1;
     }
-    to {
-      transform: scaleY(1);
+    40%,
+    100% {
+      opacity: 0.15;
     }
   }
 
   @media (prefers-reduced-motion: reduce) {
-    .eq i {
+    .dot-scan i {
       animation: none;
+      opacity: 0.4;
     }
   }
 </style>

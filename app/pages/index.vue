@@ -6,6 +6,9 @@
   // 第一幕主視覺：桌機橫式 / 行動版直式各一張（以 <picture> 依斷點切換）
   import bannerPc from '@/assets/images/banner1-pc.webp'
   import bannerM from '@/assets/images/banner1-m.webp'
+  // 主角去背圖（與原圖同尺寸，疊回去完全對齊）：夾住 WELCOME 文字，做出「字穿過人物」的前後景效果
+  import bannerPcSubject from '@/assets/images/banner1-pc-subject.png'
+  import bannerMSubject from '@/assets/images/banner1-m-subject.png'
   // 第三幕滿版背景：由原圖（1182×1330）拆成三層做景深視差
   // 背景層為原圖上下各延伸 200px（等比 1182×1730）並補畫被遮住的部分；主體 / 前景為原尺寸去背圖，疊回去與原圖對齊
   import stageBg from '@/assets/images/main-bg.webp'
@@ -23,6 +26,9 @@
   const bgFront = ref<HTMLElement | null>(null)
   const bgBack = ref<HTMLElement | null>(null)
   const bgShade = ref<HTMLElement | null>(null)
+  const welcomeBack = ref<HTMLElement | null>(null) // 第一幕 WELCOME 背景字（主角背後）
+  const welcomeFront = ref<HTMLElement | null>(null) // 第一幕 WELCOME 外框字（主角前方）
+  const welcomeOn = ref(false) // 開場 loading 結束後播 WELCOME 進場
   const bgParallax = ref<HTMLElement | null>(null) // 第三幕分層場景（整體視差）
   const stageBgEl = ref<HTMLElement | null>(null) // 背景層（比場景慢）
   const stageFgEl = ref<HTMLElement | null>(null) // 前景層（比場景快並放大）
@@ -246,6 +252,17 @@
     // 若用 .to()，在捲動途中 resize 會把「當下的中間狀態」誤記為起點，回捲時就無法還原，
     // 因此各段的起始狀態一律以 fromTo 明確指定（第三幕的 fromTo 加 immediateRender:false，避免建立時就套用）。
     tl
+      // ── 第一幕：WELCOME 前後景文字退場 ──
+      // 一開始捲動就往上飄，外框字（前景）移得比實心字（背景）快，拉出前後景深；轉場開始時淡出，不帶進第二幕小圖
+      .fromTo(welcomeBack.value, { yPercent: 0 }, { yPercent: -8, duration: ACT2 + 0.6 }, 0)
+      .fromTo(welcomeFront.value, { yPercent: 0 }, { yPercent: -22, duration: ACT2 + 0.6 }, 0)
+      .fromTo(
+        [welcomeBack.value, welcomeFront.value],
+        { autoAlpha: 1 },
+        { autoAlpha: 0, duration: 0.6 },
+        ACT2 - 0.1
+      )
+
       // ── 第二幕 ──
       // 背景大圖：由滿版縮成小圖，落點與尺寸取自 Panel 內的 bgSlot（由 CSS 決定各斷點的位置，RWD 自動對應）
       .fromTo(
@@ -480,6 +497,7 @@
     // 開場 loading 結束（約 3 秒）後：先播主頁面進場（左上解碼 + 右下標題），再建立捲動動畫
     startTimer = setTimeout(() => {
       panelRef.value?.enter()
+      welcomeOn.value = true
       // 行動版 / 桌機版各建一條 timeline（對應 Tailwind md 斷點 768px）
       mm = gsap.matchMedia()
       mm.add({ isMobile: '(max-width: 767px)', isDesktop: '(min-width: 768px)' }, (ctx) => {
@@ -515,16 +533,25 @@
             :bottom-left="bgCorners.bottomLeft"
             class="w-full h-full"
           >
-            <!-- 行動版（< md，對應 Tailwind 768px 斷點）載入直式圖，其餘載入橫式圖；瀏覽器只會下載符合的那一張 -->
-            <picture class="block w-full h-full">
-              <source media="(max-width: 767px)" :srcset="bannerM" />
-              <img
-                :src="bannerPc"
-                alt="main"
-                class="w-full h-full object-cover will-change-transform"
-                :style="{ transform: tiltStyle }"
-              />
-            </picture>
+            <!-- 前後景分層：原圖 → WELCOME 實心字 → 主角去背圖 → WELCOME 外框字。
+                 滑鼠 3D 傾斜套在共同外層，四層一起傾斜、彼此對齊 -->
+            <div class="relative w-full h-full will-change-transform" :style="{ transform: tiltStyle }">
+              <!-- 行動版（< md，對應 Tailwind 768px 斷點）載入直式圖，其餘載入橫式圖；瀏覽器只會下載符合的那一張 -->
+              <picture class="block w-full h-full">
+                <source media="(max-width: 767px)" :srcset="bannerM" />
+                <img :src="bannerPc" alt="main" class="w-full h-full object-cover" />
+              </picture>
+              <div ref="welcomeBack" class="absolute inset-0">
+                <HeroWelcome layer="back" :on="welcomeOn" />
+              </div>
+              <picture class="absolute inset-0">
+                <source media="(max-width: 767px)" :srcset="bannerMSubject" />
+                <img :src="bannerPcSubject" alt="" class="hero-subject w-full h-full object-cover" />
+              </picture>
+              <div ref="welcomeFront" class="absolute inset-0">
+                <HeroWelcome layer="front" :on="welcomeOn" />
+              </div>
+            </div>
           </TechFrame>
         </div>
         <!-- 背面：第三幕滿版背景（預先翻 180°，卡片翻完後正好轉正；翻到側面前保持隱藏） -->
@@ -575,6 +602,11 @@
 </template>
 
 <style scoped>
+  /* 第一幕主角去背圖：淡淡的暗色光暈，讓白色上衣與背後的白色 WELCOME 分得開 */
+  .hero-subject {
+    filter: drop-shadow(0 0 18px rgb(0 0 0 / 0.45));
+  }
+
   /* 第三幕場景框：原圖比例 1182:1330，寬度取「畫框寬」與「130% 畫框高換算的寬」較大者，確保覆蓋畫框並留下視差空間；
      水平置中、垂直對齊 0~130% 畫框高的中段（等同原本 object-cover 的置中裁切）。
      置中以 left / top 計算，不用 translate：gsap 補間 y 時會接管 translate 屬性，含 calc() 的值會被丟棄 */

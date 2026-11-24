@@ -256,9 +256,14 @@
         </div>
         <!-- 底部補上與頂部選單列等高的空白：上下扣除的高度相同，文字便置中於整個 Panel 高度，
              與側選單窄欄（滿高、文字置中）的同一行字對齊 -->
-        <!-- 此空白同時放進度百分比 -->
-        <span class="relative flex h-[41px] shrink-0 items-center justify-center" aria-hidden="true">
-          <span ref="progressText" class="text-[10px] tracking-wider tabular-nums opacity-70">000%</span>
+        <!-- 此空白同時放進度百分比：百分比絕對定位置中，不撐開直欄寬度（行動版直書字只有 20px 寬，
+             百分比約 32px，若參與排版會把直欄撐得比頂部漢堡格寬，兩格就對不齊） -->
+        <span class="relative h-[41px] w-full shrink-0" aria-hidden="true">
+          <span
+            ref="progressText"
+            class="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-[10px] tracking-wider tabular-nums opacity-70"
+            >000%</span
+          >
         </span>
       </div>
     </div>

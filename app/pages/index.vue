@@ -6,8 +6,11 @@
   // 第一幕主視覺：桌機橫式 / 行動版直式各一張（以 <picture> 依斷點切換）
   import bannerPc from '@/assets/images/banner1-pc.webp'
   import bannerM from '@/assets/images/banner1-m.webp'
-  // 第三幕滿版背景（近正方形 1182×1330，視差層高 130% 時上下仍有餘裕可位移）
-  import stagePic from '@/assets/images/main.webp'
+  // 第三幕滿版背景：由原圖（1182×1330）拆成三層做景深視差
+  // 背景層為原圖上下各延伸 200px（等比 1182×1730）並補畫被遮住的部分；主體 / 前景為原尺寸去背圖，疊回去與原圖對齊
+  import stageBg from '@/assets/images/main-bg.webp'
+  import stageSubject from '@/assets/images/main-subject.png'
+  import stageFg from '@/assets/images/main-fg.png'
 
   gsap.registerPlugin(ScrollTrigger)
 
@@ -20,7 +23,10 @@
   const bgFront = ref<HTMLElement | null>(null)
   const bgBack = ref<HTMLElement | null>(null)
   const bgShade = ref<HTMLElement | null>(null)
-  const bgParallax = ref<HTMLElement | null>(null)
+  const bgParallax = ref<HTMLElement | null>(null) // 第三幕分層場景（整體視差）
+  const stageBgEl = ref<HTMLElement | null>(null) // 背景層（比場景慢）
+  const stageFgEl = ref<HTMLElement | null>(null) // 前景層（比場景快並放大）
+  const stageHud = ref<{ play: () => void; reset: () => void } | null>(null) // 第四層 HUD（線條 / 準星 / 座標 / 程式碼框）
   const endBg = ref<HTMLElement | null>(null) // 第五幕深色底
   const panelRef = ref<{
     enter: () => void
@@ -75,7 +81,11 @@
   const ACT4_HOLD = 0.8 // 第四幕輪播走完後的停留
   const ACT5_IN = 1.2 // 第四 → 五幕轉場：作品區退場、深色底升起、Panel 配色 黑 → 白
   const END_HOLD = 1.2 // 第五幕內容全部進場後的結尾停留（頁面終點）
-  const PARALLAX_SHIFT = 23 // 第三幕背景視差位移量（視差層 yPercent；視差層高 130%，最多可移約 23%）
+  // 第三幕分層視差（位移量皆為畫框高的倍數）：場景整體上移，背景層落後、前景層超前，形成景深
+  const PARALLAX_SHIFT = 0.3 // 場景整體上移量（場景至少為畫框高的 130%，最多可移 30%）
+  const STAGE_BG_LAG = 0.12 // 背景層相對場景往下的量（= 移動得比較慢；背景上下各有約 20% 的延伸可用）
+  const STAGE_FG_LEAD = 0.18 // 前景層相對場景再往上的量（= 移動得比較快）
+  const STAGE_FG_SCALE = 1.08 // 前景層同時放大，像鏡頭往前推
   // 環狀文字飛到第五幕底部（參考 styleport 底部的立體圓環）
   const RING_FLY = 1.8 // 飛行長度：與第五幕轉場同時開始，稍晚於深色底完成
   const RING_END_SCALE = { desktop: 0.8, mobile: 1.5 } // 終點寬度 = 內容區寬 × 此倍數（行動版超出畫面兩側）
@@ -150,6 +160,13 @@
       time > SKILLS && time < act4At + 0.05,
       () => panel.skills?.enter(),
       () => panel.skills?.leave()
+    )
+    // 第三幕 HUD：背面（第三幕背景）翻出後畫出線條、解碼文字；翻往第四幕到側面時收回
+    syncGate(
+      'hud',
+      time > FLIP_MID + 0.15 && time < act4At + FLIP2 / 2,
+      () => stageHud.value?.play(),
+      () => stageHud.value?.reset()
     )
     // 第四幕作品標題亂碼解碼：背景翻到側面、切換成作品卡片後
     syncGate(
@@ -303,13 +320,28 @@
     act4At = ACT4
     panel?.skills?.addOutro(tl, act3End, ACT4, isMobile)
 
-    // 第三幕背景視差：背面一出現就開始，直到翻轉到側面被換掉為止，背景圖持續緩慢上移
+    // 第三幕分層視差：背面一出現就開始，直到翻轉到側面被換掉為止。
+    // 場景整體緩慢上移；背景層落後、前景層超前並放大，三層速度不同形成景深（位移量以畫框高換算，resize 時重新量測）
+    const frameH = () => bgBack.value?.clientHeight ?? window.innerHeight
+    const stageLen = FLIP2_MID - FLIP_MID
     tl.fromTo(
       bgParallax.value,
-      { yPercent: 0 },
-      { yPercent: -PARALLAX_SHIFT, duration: FLIP2_MID - FLIP_MID, immediateRender: false },
+      { y: 0 },
+      { y: () => -frameH() * PARALLAX_SHIFT, duration: stageLen, immediateRender: false },
       FLIP_MID
     )
+      .fromTo(
+        stageBgEl.value,
+        { y: 0 },
+        { y: () => frameH() * STAGE_BG_LAG, duration: stageLen, immediateRender: false },
+        FLIP_MID
+      )
+      .fromTo(
+        stageFgEl.value,
+        { y: 0, scale: 1 },
+        { y: () => -frameH() * STAGE_FG_LEAD, scale: STAGE_FG_SCALE, duration: stageLen, immediateRender: false },
+        FLIP_MID
+      )
 
     // ── 第四幕：滿版背景沿同方向繼續翻轉（180° → 360°）並縮向中央輪播區，翻到側面時消失、由輪播接手 ──
     const workRect = () => panel!.works!.slotRect()
@@ -505,14 +537,24 @@
             :bottom-left="bgCorners.bottomLeft"
             class="w-full h-full"
           >
-            <!-- 視差層：比畫框高 30%，第三幕期間隨捲動緩慢上移（露出圖片下半部） -->
-            <div ref="bgParallax" class="absolute inset-x-0 top-0 h-[130%]">
-              <img
-                :src="stagePic"
-                alt="skills background"
-                class="w-full h-full object-cover will-change-transform"
-                :style="{ transform: tiltStyle }"
-              />
+            <!-- 分層場景：以畫框為尺寸容器，場景框維持原圖比例並覆蓋畫框（至少 130% 畫框高，留視差位移空間），
+                 三層圖片疊在同一個場景框內，彼此才會精準對齊 -->
+            <div class="absolute inset-0 overflow-hidden [container-type:size]">
+              <div ref="bgParallax" class="stage-scene will-change-transform">
+                <!-- 滑鼠 3D 傾斜套在三層的共同外層（與 gsap 的位移分開，避免 transform 互相覆蓋） -->
+                <div class="absolute inset-0" :style="{ transform: tiltStyle }">
+                  <img ref="stageBgEl" :src="stageBg" alt="" class="stage-bg will-change-transform" />
+                  <img :src="stageSubject" alt="skills background" class="absolute inset-0 w-full h-full" />
+                  <img
+                    ref="stageFgEl"
+                    :src="stageFg"
+                    alt=""
+                    class="absolute inset-0 w-full h-full origin-bottom will-change-transform"
+                  />
+                  <!-- 第四層 HUD：與主體同速，疊在最上方（仍在壓暗遮罩之下） -->
+                  <StageHud ref="stageHud" />
+                </div>
+              </div>
             </div>
             <!-- 壓暗遮罩：讓第三幕白字可讀（行動版文字滿寬，改為均勻壓暗） -->
             <div
@@ -531,3 +573,34 @@
     <section ref="spacer" class="relative z-10 h-[300vh] pointer-events-none"></section>
   </div>
 </template>
+
+<style scoped>
+  /* 第三幕場景框：原圖比例 1182:1330，寬度取「畫框寬」與「130% 畫框高換算的寬」較大者，確保覆蓋畫框並留下視差空間；
+     水平置中、垂直對齊 0~130% 畫框高的中段（等同原本 object-cover 的置中裁切）。
+     置中以 left / top 計算，不用 translate：gsap 補間 y 時會接管 translate 屬性，含 calc() 的值會被丟棄 */
+  .stage-scene {
+    --scene-w: max(100cqw, 130cqh * 1182 / 1330);
+    position: absolute;
+    left: calc((100cqw - var(--scene-w)) / 2);
+    top: calc((130cqh - var(--scene-w) * 1330 / 1182) / 2);
+    width: var(--scene-w);
+    aspect-ratio: 1182 / 1330;
+  }
+
+  /* 行動版直式畫框只看得到場景中段，而主角位於場景偏左（臉部中心約在 35% 寬處）：
+     場景往右移，讓主角置中；位移量上限為場景超出畫框的一半，確保左緣不會露出空白 */
+  @media (max-width: 767px) {
+    .stage-scene {
+      left: calc((100cqw - var(--scene-w)) / 2 + min(var(--scene-w) * 0.15, (var(--scene-w) - 100cqw) / 2));
+    }
+  }
+
+  /* 背景層：原圖上下各延伸 200px（1730 / 1330），往上超出場景 200 / 1330 */
+  .stage-bg {
+    position: absolute;
+    left: 0;
+    top: calc(-200 / 1330 * 100%);
+    width: 100%;
+    height: calc(1730 / 1330 * 100%);
+  }
+</style>

@@ -174,7 +174,7 @@
           class="invisible absolute pointer-events-none right-4 bottom-4 w-[calc(100%-32px)] aspect-4/3 md:right-auto md:left-[calc(100%/3+24px)] md:bottom-6 md:w-87.5 md:h-50 md:aspect-auto"
         ></div>
         <SkillsBoard ref="skills" />
-        <WorksBoard ref="works" />
+        <WorksBoard ref="works" @navigate="emit('navigate', $event)" />
         <ContactBoard ref="contact" />
       </main>
       <div class="p-line h-full text-xs px-3 py-3 flex flex-col items-center whitespace-nowrap border-l-[0.5px]">

@@ -171,6 +171,11 @@
   const introWrap = ref<HTMLElement | null>(null)
   const lineEls = ref<HTMLElement[]>([])
   const specEls = ref<HTMLElement[]>([])
+  const ringWrap = ref<HTMLElement | null>(null)
+  const ring = ref<{ play: () => void; pause: () => void } | null>(null)
+
+  // 環狀文字點擊後捲到第五幕（由 Panel 轉交 index.vue 的 scrollToSection）
+  const emit = defineEmits<{ navigate: [key: 'contact'] }>()
 
   // 輪播區落點（視窗座標）：index.vue 以此決定滿版背景縮向的位置與尺寸
   const slotRect = () => slotEl.value!.getBoundingClientRect()
@@ -218,6 +223,13 @@
       // 規格尺規：橫線由左往右畫出，數值隨後浮現
       .fromTo(lineEls.value, { scaleX: 0 }, { scaleX: 1, duration: 0.5, stagger: 0.08, ease: 'power2.out' }, at + 0.35)
       .fromTo(specEls.value, { autoAlpha: 0, x: -8 }, { autoAlpha: 1, x: 0, duration: 0.3, stagger: 0.08 }, at + 0.5)
+      // 環狀文字：縮放淡入
+      .fromTo(
+        ringWrap.value,
+        { autoAlpha: 0, scale: 0.85 },
+        { autoAlpha: 1, scale: 1, duration: 0.5, ease: 'power2.out' },
+        at + 0.4
+      )
       // 兩列往相反方向輪播：A 列由起點往前推進、B 列由終點往回推進
       .fromTo(trackEls[0]!, { [axis]: 0 }, { [axis]: () => -travelA(), duration: scrollLen }, moveAt)
       .fromTo(trackEls[1]!, { [axis]: () => -travelB() }, { [axis]: 0, duration: scrollLen }, moveAt)
@@ -228,8 +240,16 @@
     tl.fromTo(root.value, { autoAlpha: 1, y: 0 }, { autoAlpha: 0, y: -40, duration: 0.6, immediateRender: false }, at)
   }
 
-  const enter = () => setText(summary.title) // 區塊標題亂數解碼進場
-  const leave = () => setText('') // 標題亂碼解散
+  // 區塊標題亂數解碼進場，環狀文字開始旋轉
+  const enter = () => {
+    setText(summary.title)
+    ring.value?.play()
+  }
+  // 標題亂碼解散，環狀文字停轉（離開本幕後不再佔用每幀運算）
+  const leave = () => {
+    setText('')
+    ring.value?.pause()
+  }
 
   defineExpose({ addTo, addOutro, enter, leave, slotRect })
 </script>
@@ -335,6 +355,16 @@
           <p class="mt-3 text-xs md:text-sm leading-relaxed opacity-80 max-md:[@media(max-height:700px)]:hidden">
             {{ summary.desc }}
           </p>
+        </div>
+
+        <!-- 環狀文字：填補說明與規格尺規之間的空白（行動版隱藏，把高度讓給輪播），點擊捲到聯絡區 -->
+        <div ref="ringWrap" class="hidden min-h-0 flex-1 items-start md:flex">
+          <AtomsTextRing
+            ref="ring"
+            text="Start a conversation"
+            class="pointer-events-auto mx-auto max-w-96"
+            @click="emit('navigate', 'contact')"
+          />
         </div>
 
         <!-- 規格尺規：每列一條由左往右畫出的橫線（行動版隱藏，把高度讓給輪播） -->

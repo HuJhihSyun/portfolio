@@ -24,6 +24,7 @@
   const endBg = ref<HTMLElement | null>(null) // 第五幕深色底
   const panelRef = ref<{
     enter: () => void
+    setProgress: (progress: number) => void
     scrambleOut: () => void
     scrambleIn: () => void
     revealOut: () => void
@@ -217,7 +218,12 @@
     // 所有動畫排在同一條主 timeline、由單一 ScrollTrigger 驅動。
     // 先排好補間、依總長設定捲動空間，最後才建立 ScrollTrigger（確保量測到正確的捲動範圍）
     // defaults.duration 只作用於未指定長度的第二幕轉場補間（其餘補間皆明確指定 duration）
-    tl = gsap.timeline({ defaults: { ease: 'none', duration: ACT2_IN }, paused: true })
+    tl = gsap.timeline({
+      defaults: { ease: 'none', duration: ACT2_IN },
+      paused: true,
+      // 右側直欄的頁面進度條：跟著 timeline（含 scrub 平滑）更新，與畫面上的轉場同步
+      onUpdate: () => panelRef.value?.setProgress(tl?.progress() ?? 0)
+    })
 
     // 注意：因 invalidateOnRefresh，視窗尺寸變更時補間會重新記錄起始值。
     // 若用 .to()，在捲動途中 resize 會把「當下的中間狀態」誤記為起點，回捲時就無法還原，

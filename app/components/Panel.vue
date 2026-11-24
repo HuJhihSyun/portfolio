@@ -42,8 +42,19 @@
 
   // 右下 line-reveal 標題的退場狀態：true 時套用 .is-exiting（橫條再次劃過、文字淡出消失）
   const exiting = ref(false)
-  const revealOut = () => (exiting.value = true) // 下捲：播退場動畫
-  const revealIn = () => (exiting.value = false) // 回捲：移除 class，還原成進場後的可見狀態
+  // 第一幕捲動提示徽章：離開第一幕時停轉，捲回時復原（點擊後放大淡出的狀態也一併還原）
+  const scrollBadge = ref<{ reset: () => void; play: () => void; pause: () => void } | null>(null)
+  // 下捲：播退場動畫
+  const revealOut = () => {
+    exiting.value = true
+    scrollBadge.value?.pause()
+  }
+  // 回捲：移除 class，還原成進場後的可見狀態
+  const revealIn = () => {
+    exiting.value = false
+    scrollBadge.value?.reset()
+    scrollBadge.value?.play()
+  }
 
   // 右側區塊（第二畫面）：nameWrap 的 Block Reveal 進退場狀態 + aboutText 的 Scramble
   const nameState = ref<'hidden' | 'in' | 'out'>('hidden') // hidden=初始隱藏、in=進場、out=退場
@@ -84,8 +95,24 @@
   // 位置 / 尺寸 / 傾斜由 index.vue 的主 timeline 補間
   const ring = ref<{ play: () => void; pause: () => void; setInteractive: (value: boolean) => void } | null>(null)
 
+  // 右側直欄的頁面進度條（參考 kprverse 外框的半透明進度填色）：由 index.vue 在主 timeline 更新時呼叫。
+  // 直接寫 CSS 變數與文字（不經 Vue 響應式），每幀更新也不會觸發重新渲染
+  const progressCol = ref<HTMLElement | null>(null)
+  const progressText = ref<HTMLElement | null>(null)
+  let lastPercent = -1
+  const setProgress = (progress: number) => {
+    const p = Math.min(1, Math.max(0, progress))
+    progressCol.value?.style.setProperty('--scroll-progress', String(p))
+    const percent = Math.round(p * 100)
+    if (percent !== lastPercent && progressText.value) {
+      lastPercent = percent
+      progressText.value.textContent = `${String(percent).padStart(3, '0')}%`
+    }
+  }
+
   // 暴露給父層（index.vue）呼叫
   defineExpose({
+    setProgress,
     enter,
     scrambleOut,
     scrambleIn,
@@ -124,12 +151,22 @@
     <div class="middle w-full flex-1 min-h-0 flex justify-center items-center">
       <!-- overflow-clip（而非 hidden）：第五幕表單欄位取得焦點時，瀏覽器不會自行捲動 main 而打亂 timeline 控制的版面 -->
       <main ref="mainEl" class="relative w-full h-full overflow-clip">
-        <!-- 第一幕：行動版文字與標題改為滿寬，上下分置避免重疊 -->
-        <article
-          ref="headerText"
-          class="hero-shadow w-full md:w-1/2 leading-relaxed text-sm md:leading-normal p-4 md:p-6"
-          v-html="profileOutput"
-        ></article>
+        <!-- 第一幕：行動版文字與標題改為滿寬，上下分置避免重疊。
+             外層 headerText 由 index.vue 控制淡出（文字與捲動提示徽章一起退場）；relative z-10 讓徽章疊在第二幕的透明元素之上、可被點擊 -->
+        <div ref="headerText" class="relative z-10 w-full md:w-1/2">
+          <article
+            class="hero-shadow leading-relaxed text-sm md:leading-normal p-4 md:p-6"
+            v-html="profileOutput"
+          ></article>
+          <!-- 捲動提示徽章：點擊後捲到第二幕（About）；徽章本身在 loading 結束、文字解碼時一起淡入 -->
+          <!-- 進場淡入放在外層：避免 CSS transition 干擾徽章點擊時 gsap 的放大淡出 -->
+          <div
+            class="badge-in ml-4 w-fit md:ml-6 max-md:[@media(max-height:700px)]:hidden"
+            :class="{ 'is-entered': entered }"
+          >
+            <AtomsScrollBadge ref="scrollBadge" class="size-28 md:size-32" @click="emit('navigate', 'about')" />
+          </div>
+        </div>
         <article
           class="hero-shadow absolute flex flex-col items-end right-0 bottom-0 w-full md:w-1/2 text-5xl md:text-7xl lg:text-8xl [@media(max-height:500px)]:text-5xl text-right p-4 md:p-6 leading-none"
         >
@@ -205,15 +242,24 @@
         </div>
         <ContactBoard ref="contact" />
       </main>
-      <div class="p-line h-full text-xs px-3 py-3 flex flex-col items-center whitespace-nowrap border-l-[0.5px]">
-        <div class="flex flex-1 items-center justify-center">
+      <div
+        ref="progressCol"
+        class="p-line relative h-full text-xs px-3 py-3 flex flex-col items-center whitespace-nowrap border-l-[0.5px]"
+      >
+        <!-- 頁面進度：半透明填色由上往下推進，下緣一條細線標示目前位置（顏色隨 Panel 主題色） -->
+        <span class="progress-fill" aria-hidden="true"></span>
+        <span class="progress-edge" aria-hidden="true"></span>
+        <div class="relative flex flex-1 items-center justify-center">
           <span class="text-[11px] leading-5 md:leading-8 md:text-xs font-normal [writing-mode:vertical-rl] uppercase"
             >Side Project by Syun</span
           >
         </div>
         <!-- 底部補上與頂部選單列等高的空白：上下扣除的高度相同，文字便置中於整個 Panel 高度，
              與側選單窄欄（滿高、文字置中）的同一行字對齊 -->
-        <span class="h-[41px] shrink-0" aria-hidden="true"></span>
+        <!-- 此空白同時放進度百分比 -->
+        <span class="relative flex h-[41px] shrink-0 items-center justify-center" aria-hidden="true">
+          <span ref="progressText" class="text-[10px] tracking-wider tabular-nums opacity-70">000%</span>
+        </span>
       </div>
     </div>
     <SideMenu v-model:open="menuOpen" />
@@ -269,6 +315,41 @@
 
   /* 第一幕文字壓在主視覺上：加背景色陰影（近身陰影勾邊 + 大範圍柔光壓暗），避免與圖片重疊時看不清。
      陰影色取 --panel-bg，配色補間到第二幕時跟著反轉，不會在黑字周圍留下黑影 */
+  /* 右側直欄的頁面進度：填色以 scaleY 縮放（只動 transform，每幀更新不重新排版） */
+  .progress-fill {
+    position: absolute;
+    inset: 0;
+    background: var(--panel-fg, #fff);
+    opacity: 0.03;
+    transform: scaleY(var(--scroll-progress, 0));
+    transform-origin: top;
+    pointer-events: none;
+  }
+
+  /* 填色下緣的細線：整層高度同直欄，以 translateY（百分比 = 自身高度）移到進度位置 */
+  .progress-edge {
+    position: absolute;
+    inset: 0;
+    border-top: 1px solid var(--panel-fg, #fff);
+    opacity: 0.2;
+    transform: translateY(calc(var(--scroll-progress, 0) * 100% - 1px));
+    pointer-events: none;
+  }
+
+  /* 捲動提示徽章進場：loading 結束後（entered）與左上文字解碼同時淡入、由小放大 */
+  .badge-in {
+    opacity: 0;
+    scale: 0.85;
+    transition:
+      opacity 0.8s ease 0.6s,
+      scale 0.8s cubic-bezier(0.22, 1, 0.36, 1) 0.6s;
+
+    &.is-entered {
+      opacity: 1;
+      scale: 1;
+    }
+  }
+
   .hero-shadow {
     text-shadow:
       0 1px 2px color-mix(in srgb, var(--panel-bg, #000) 70%, transparent),

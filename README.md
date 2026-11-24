@@ -16,6 +16,7 @@
 - https://tatap.jp/
 - https://www.opexpark.co.jp/
 - https://shirota-yu.com/
+- https://wwwzz.jp/
 
 ---
 

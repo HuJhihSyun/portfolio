@@ -37,6 +37,10 @@
   const ringEl = ref<HTMLElement | null>(null)
   const charEls: HTMLElement[] = []
 
+  // 是否可點擊：飛到第五幕當背景圖騰時關閉，避免擋住表單、也不再被 Tab 選到
+  const interactive = ref(true)
+  const setInteractive = (value: boolean) => (interactive.value = value)
+
   const state = { angle: 0, speed: props.speed }
   let running = false
   let reduceMotion = false
@@ -87,30 +91,35 @@
     gsap.killTweensOf(state)
   })
 
-  defineExpose({ play, pause })
+  defineExpose({ play, pause, setInteractive })
 </script>
 
 <template>
   <button
     type="button"
     class="text-ring"
+    :class="{ 'is-static': !interactive }"
     :aria-label="text"
-    @click="$emit('click')"
-    @mouseenter="speedUp"
+    :aria-hidden="!interactive || undefined"
+    :tabindex="interactive ? undefined : -1"
+    @click="interactive && $emit('click')"
+    @mouseenter="interactive && speedUp()"
     @mouseleave="slowDown"
     @focus="speedUp"
     @blur="slowDown"
   >
-    <span class="ring-scene" aria-hidden="true">
-      <span ref="ringEl" class="ring-body" :style="ringVars">
-        <span
-          v-for="(char, i) in chars"
-          :key="i"
-          :ref="(el) => (charEls[i] = el as HTMLElement)"
-          class="ring-char"
-          :style="{ transform: `rotateY(${i * step}deg) translateZ(var(--radius)) scaleY(1.35)` }"
-          >{{ char === ' ' ? ' ' : char }}</span
-        >
+    <span class="ring-stage" aria-hidden="true">
+      <span class="ring-scene">
+        <span ref="ringEl" class="ring-body" :style="ringVars">
+          <span
+            v-for="(char, i) in chars"
+            :key="i"
+            :ref="(el) => (charEls[i] = el as HTMLElement)"
+            class="ring-char"
+            :style="{ transform: `rotateY(${i * step}deg) translateZ(var(--radius)) rotateX(var(--ring-lay, 0deg)) scaleY(1.35)` }"
+            >{{ char === ' ' ? ' ' : char }}</span
+          >
+        </span>
       </span>
     </span>
   </button>
@@ -125,8 +134,11 @@
     aspect-ratio: 2 / 1;
     cursor: pointer;
     position: relative;
-    perspective: 1200px;
     color: inherit;
+
+    &.is-static {
+      pointer-events: none;
+    }
 
     &:focus-visible {
       outline: 1px dashed currentColor;
@@ -135,6 +147,7 @@
   }
 
   /* 類名避開 Tailwind 的 ring / scene 等工具類（.ring 會被加上 1px 外框陰影） */
+  .ring-stage,
   .ring-scene,
   .ring-body {
     position: absolute;
@@ -142,9 +155,18 @@
     transform-style: preserve-3d;
   }
 
-  /* 圓柱傾斜：往後仰讓上緣的背面字露出，再微微斜放 */
+  /* --ring-lay：每個字以底邊為軸往圓心倒下的角度（0 = 直立在圓柱面上，90deg = 平躺在環面上、字頭朝圓心），
+     由外層設定、可被 gsap 補間 */
+
+  /* 透視距離隨環的寬度等比例（約為寬度的 4.5 倍）：環被放大時立體變形程度維持一致，不會越大越扭曲 */
+  .ring-stage {
+    perspective: 450cqw;
+  }
+
+  /* 圓柱傾斜：往後仰讓上緣的背面字露出，再微微斜放。
+     角度以 CSS 變數控制（由外層設定、可被 gsap 補間），例如飛到第五幕時改為接近水平的俯視角 */
   .ring-scene {
-    transform: rotateX(-16deg) rotateZ(-8deg);
+    transform: rotateX(var(--ring-tilt-x, -16deg)) rotateZ(var(--ring-tilt-z, -8deg));
   }
 
   .ring-body {

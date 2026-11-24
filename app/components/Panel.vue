@@ -80,8 +80,24 @@
     leave: () => void
   } | null>(null)
 
+  // 環狀文字（第四幕右欄 → 第五幕底部）：放在 Panel 層而非 WorksBoard 內，第四幕退場淡出時才不會一起消失。
+  // 位置 / 尺寸 / 傾斜由 index.vue 的主 timeline 補間
+  const ring = ref<{ play: () => void; pause: () => void; setInteractive: (value: boolean) => void } | null>(null)
+
   // 暴露給父層（index.vue）呼叫
-  defineExpose({ enter, scrambleOut, scrambleIn, revealOut, revealIn, aboutIn, aboutOut, skills, works, contact })
+  defineExpose({
+    enter,
+    scrambleOut,
+    scrambleIn,
+    revealOut,
+    revealIn,
+    aboutIn,
+    aboutOut,
+    skills,
+    works,
+    contact,
+    ring
+  })
 </script>
 
 <template>
@@ -107,7 +123,7 @@
     </div>
     <div class="middle w-full flex-1 min-h-0 flex justify-center items-center">
       <!-- overflow-clip（而非 hidden）：第五幕表單欄位取得焦點時，瀏覽器不會自行捲動 main 而打亂 timeline 控制的版面 -->
-      <main class="relative w-full h-full overflow-clip">
+      <main ref="mainEl" class="relative w-full h-full overflow-clip">
         <!-- 第一幕：行動版文字與標題改為滿寬，上下分置避免重疊 -->
         <article
           ref="headerText"
@@ -174,7 +190,19 @@
           class="invisible absolute pointer-events-none right-4 bottom-4 w-[calc(100%-32px)] aspect-4/3 md:right-auto md:left-[calc(100%/3+24px)] md:bottom-6 md:w-87.5 md:h-50 md:aspect-auto"
         ></div>
         <SkillsBoard ref="skills" />
-        <WorksBoard ref="works" @navigate="emit('navigate', $event)" />
+        <WorksBoard ref="works" />
+        <!-- 環狀文字：排在 ContactBoard 之前，飛到第五幕後墊在聯絡內容底下。
+             外層（ringFloat）負責位置、尺寸與傾斜角，內層（ringFade）負責第五幕時淡化成背景圖騰 -->
+        <div ref="ringFloat" class="invisible absolute left-0 top-0 pointer-events-none">
+          <div ref="ringFade">
+            <AtomsTextRing
+              ref="ring"
+              text="Start a conversation"
+              class="pointer-events-auto"
+              @click="emit('navigate', 'contact')"
+            />
+          </div>
+        </div>
         <ContactBoard ref="contact" />
       </main>
       <div class="p-line h-full text-xs px-3 py-3 flex flex-col items-center whitespace-nowrap border-l-[0.5px]">

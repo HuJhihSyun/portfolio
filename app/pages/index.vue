@@ -42,7 +42,9 @@
       enter: () => void
       leave: () => void
       slotRect: () => DOMRect
+      ringSlotRect: () => DOMRect
     } | null
+    ring: { play: () => void; pause: () => void; setInteractive: (value: boolean) => void } | null
     contact: {
       addTo: (tl: gsap.core.Timeline, at: number, unitPx?: number) => void
       enter: () => void
@@ -54,6 +56,9 @@
       characterCard: HTMLElement
       aboutWrap: HTMLElement
       bgSlot: HTMLElement
+      mainEl: HTMLElement
+      ringFloat: HTMLElement
+      ringFade: HTMLElement
     }
   } | null>(null)
 
@@ -70,6 +75,13 @@
   const ACT5_IN = 1.2 // 第四 → 五幕轉場：作品區退場、深色底升起、Panel 配色 黑 → 白
   const END_HOLD = 1.2 // 第五幕內容全部進場後的結尾停留（頁面終點）
   const PARALLAX_SHIFT = 23 // 第三幕背景視差位移量（視差層 yPercent；視差層高 130%，最多可移約 23%）
+  // 環狀文字飛到第五幕底部（參考 styleport 底部的立體圓環）
+  const RING_FLY = 1.8 // 飛行長度：與第五幕轉場同時開始，稍晚於深色底完成
+  const RING_END_SCALE = { desktop: 0.8, mobile: 1.5 } // 終點寬度 = 內容區寬 × 此倍數（行動版超出畫面兩側）
+  const RING_END_TILT = -24 // 終點傾斜角（rotateX）：接近水平的低角度俯視，圓環壓成扁平的橢圓
+  const RING_END_LAY = 90 // 終點時每個字倒下的角度：90 = 平躺在環面上，像印在地面的文字環，降低立體感
+  const RING_ROLL = 1 // 飛行途中圓環翻滾的圈數（繞水平軸翻轉，取代單純平移）
+  const RING_END_ALPHA = 0.1 // 終點透明度：淡化成墊在聯絡內容底下的點綴
 
   const ACT2 = INTRO_HOLD // 第二幕轉場起點
   const ACT3 = ACT2 + ACT2_IN + ACT2_HOLD // 第三幕轉場起點
@@ -78,6 +90,7 @@
   // 第四 / 五幕轉場起點：前一幕內容長度依斷點不同（行動版含內容上移），於建立 timeline 時才算出
   let act4At = Infinity
   let act5At = Infinity
+  let ringAt = Infinity // 環狀文字開始旋轉的時間點（桌機版第四幕出現時；行動版第五幕才出現）
 
   // 背景大圖的科技感切角進度（0=矩形 → 1=完整切角），由主 timeline 補間：第二幕長出、第三幕滿版時收回
   const cornerProgress = ref(0)
@@ -143,6 +156,20 @@
       time > act4At + FLIP2 / 2 && time < act5At + 0.05,
       () => panel.works?.enter(),
       () => panel.works?.leave()
+    )
+    // 環狀文字：出現後持續旋轉到頁尾，捲回出現前才停轉（停轉時不佔用每幀運算）
+    syncGate(
+      'ring',
+      time > ringAt,
+      () => panel.ring?.play(),
+      () => panel.ring?.pause()
+    )
+    // 環狀文字只在第四幕可點擊（捲到聯絡區）；飛到第五幕後當背景圖騰，不擋表單
+    syncGate(
+      'ringLink',
+      time < act5At,
+      () => panel.ring?.setInteractive(true),
+      () => panel.ring?.setInteractive(false)
     )
     // 第五幕標題 / 終端機訊息解碼：深色底升起一半後
     syncGate(
@@ -321,6 +348,62 @@
       ACT5
     )
     panel?.contact?.addTo(tl, ACT5 + ACT5_IN / 2, (window.innerHeight * VH_PER_UNIT) / 100)
+
+    // ── 環狀文字：桌機版第四幕停在右欄落點，第五幕隨捲動翻滾著飛到底部、放大，字逐漸平躺成俯視的文字環，淡化成背景點綴；
+    //    行動版第四幕沒有落點，第五幕才直接在底部淡入。位置以 Panel 內容區（main）為基準換算 ──
+    const mainRect = () => refs!.mainEl.getBoundingClientRect()
+    const ringStart = () => {
+      const r = panel!.works!.ringSlotRect()
+      const m = mainRect()
+      return { left: r.left - m.left, top: r.top - m.top, width: r.width }
+    }
+    const ringEnd = () => {
+      const m = mainRect()
+      const width = m.width * (isMobile ? RING_END_SCALE.mobile : RING_END_SCALE.desktop)
+      // 正面的字距環中心約 (半徑 0.4 + 半個字高 0.12) × sin(傾斜角) 倍環寬：依此把正面的字放在底列（40px）上方
+      const frontReach = 0.52 * Math.sin((Math.abs(RING_END_TILT) * Math.PI) / 180)
+      return { left: (m.width - width) / 2, top: m.height - 40 - width * (0.25 + frontReach), width }
+    }
+    const ringFrom = isMobile ? ringEnd : ringStart
+    // 終點傾斜角再多轉 RING_ROLL 圈：飛行途中圓環繞水平軸翻滾，最後停在相同的俯視角
+    const tiltEnd = { x: RING_END_TILT - 360 * RING_ROLL, z: 0, lay: RING_END_LAY }
+    const tiltFrom = isMobile ? tiltEnd : { x: -16, z: -8, lay: 0 }
+    ringAt = isMobile ? ACT5 + ACT5_IN / 2 : FLIP2_MID
+    tl.fromTo(
+      refs?.ringFloat ?? null,
+      {
+        left: () => ringFrom().left,
+        top: () => ringFrom().top,
+        width: () => ringFrom().width,
+        '--ring-tilt-x': `${tiltFrom.x}deg`,
+        '--ring-tilt-z': `${tiltFrom.z}deg`,
+        '--ring-lay': `${tiltFrom.lay}deg`
+      },
+      {
+        left: () => ringEnd().left,
+        top: () => ringEnd().top,
+        width: () => ringEnd().width,
+        '--ring-tilt-x': `${tiltEnd.x}deg`,
+        '--ring-tilt-z': `${tiltEnd.z}deg`,
+        '--ring-lay': `${tiltEnd.lay}deg`,
+        duration: RING_FLY,
+        ease: 'power2.inOut'
+      },
+      ACT5
+    )
+      .fromTo(
+        refs?.ringFade ?? null,
+        { opacity: isMobile ? RING_END_ALPHA : 1 },
+        { opacity: RING_END_ALPHA, duration: RING_FLY },
+        ACT5
+      )
+      // 進場：桌機版隨第四幕右欄縮放淡入，行動版於第五幕深色底升起一半後淡入
+      .fromTo(
+        refs?.ringFloat ?? null,
+        { autoAlpha: 0, scale: isMobile ? 1 : 0.85 },
+        { autoAlpha: 1, scale: 1, duration: 0.6, ease: 'power2.out' },
+        isMobile ? ACT5 + ACT5_IN / 2 : FLIP2_MID + 0.4
+      )
 
     // 結尾停留
     tl.to({}, { duration: END_HOLD })

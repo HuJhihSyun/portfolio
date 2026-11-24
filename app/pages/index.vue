@@ -212,7 +212,7 @@
     }
   }
 
-  const LOADING_DELAY = 3000 // 開場 loading 動畫時長（ms），捲動動畫延遲同樣時間再建立
+  const { onLoaded } = useGlobalLoading() // 開場 loading 結束後才播進場、建立捲動動畫（站內換頁回首頁時立即開始）
   const VH_PER_UNIT = 50 // 每 1 單位 timeline 時間對應的捲動距離（vh），捲動空間依 timeline 總長換算
   let tl: gsap.core.Timeline | null = null
   let trigger: ScrollTrigger | null = null
@@ -229,7 +229,7 @@
     const top = trigger.start + (time / tl.duration()) * (trigger.end - trigger.start)
     window.scrollTo({ top, behavior: 'smooth' })
   }
-  let startTimer: ReturnType<typeof setTimeout> | null = null
+  let cancelStart: (() => void) | null = null
 
   // 依斷點建立主 timeline（由 gsap.matchMedia 呼叫；跨越斷點時自動 revert 舊的並重建）
   const buildTimeline = (isMobile: boolean) => {
@@ -256,12 +256,7 @@
       // 一開始捲動就往上飄，外框字（前景）移得比實心字（背景）快，拉出前後景深；轉場開始時淡出，不帶進第二幕小圖
       .fromTo(welcomeBack.value, { yPercent: 0 }, { yPercent: -8, duration: ACT2 + 0.6 }, 0)
       .fromTo(welcomeFront.value, { yPercent: 0 }, { yPercent: -22, duration: ACT2 + 0.6 }, 0)
-      .fromTo(
-        [welcomeBack.value, welcomeFront.value],
-        { autoAlpha: 1 },
-        { autoAlpha: 0, duration: 0.6 },
-        ACT2 - 0.1
-      )
+      .fromTo([welcomeBack.value, welcomeFront.value], { autoAlpha: 1 }, { autoAlpha: 0, duration: 0.6 }, ACT2 - 0.1)
 
       // ── 第二幕 ──
       // 背景大圖：由滿版縮成小圖，落點與尺寸取自 Panel 內的 bgSlot（由 CSS 決定各斷點的位置，RWD 自動對應）
@@ -494,8 +489,8 @@
       gsap.set(refs.characterCard, { opacity: 0, rotationY: -180, transformOrigin: 'center' })
     }
 
-    // 開場 loading 結束（約 3 秒）後：先播主頁面進場（左上解碼 + 右下標題），再建立捲動動畫
-    startTimer = setTimeout(() => {
+    // 開場 loading 結束（直接開啟約 3 秒；站內換頁立即）後：先播主頁面進場（左上解碼 + 右下標題），再建立捲動動畫
+    cancelStart = onLoaded(() => {
       panelRef.value?.enter()
       welcomeOn.value = true
       // 行動版 / 桌機版各建一條 timeline（對應 Tailwind md 斷點 768px）
@@ -503,11 +498,11 @@
       mm.add({ isMobile: '(max-width: 767px)', isDesktop: '(min-width: 768px)' }, (ctx) => {
         buildTimeline(!!ctx.conditions?.isMobile)
       })
-    }, LOADING_DELAY)
+    })
   })
 
   onBeforeUnmount(() => {
-    if (startTimer) clearTimeout(startTimer)
+    cancelStart?.()
     mm?.revert() // 一併清除 matchMedia 內建立的 timeline 與 ScrollTrigger
   })
 </script>

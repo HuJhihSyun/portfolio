@@ -1,5 +1,5 @@
 <script setup lang="ts">
-  import { ref, watch, nextTick, onMounted, onBeforeUnmount } from 'vue'
+  import { ref, computed, watch, nextTick, onMounted, onBeforeUnmount } from 'vue'
   import gsap from 'gsap'
   import { CAREER_LINKS, SOCIAL_LINKS } from '#shared/profile'
 
@@ -8,13 +8,27 @@
   // 側選單開關（由 Panel 的漢堡按鈕以 v-model:open 控制）
   const open = defineModel<boolean>('open', { default: false })
 
-  // TODO: 目前尚無分頁，先放假資料；有分頁後改為實際路由並依目前頁面決定 active
-  const navList = [
-    { label: 'Home', page: '001' },
-    { label: 'Articles', page: '002' },
-    { label: 'Gallery', page: '003' }
+  // 分頁選單：to 為路由（Articles 尚未製作，先不可點）；目前頁面依路由高亮
+  const navList: { label: string; page: string; to: string | null }[] = [
+    { label: 'Home', page: '001', to: '/' },
+    { label: 'Articles', page: '002', to: null },
+    { label: 'Gallery', page: '003', to: '/gallery' }
   ]
-  const activeIndex = 0
+  const route = useRoute()
+  const activeIndex = computed(() =>
+    Math.max(
+      0,
+      navList.findIndex((item) => item.to === route.path)
+    )
+  )
+
+  // 點選其他分頁：先播完關閉動畫，再切換路由（避免選單隨頁面卸載而瞬間消失）
+  let pendingRoute: string | null = null
+  const onNavClick = (i: number) => {
+    const to = navList[i]?.to
+    if (to && i !== activeIndex.value) pendingRoute = to
+    close()
+  }
   // Connect 區塊的連結：取自 Footer 共用的連結資料（shared/profile.ts），依此順序排列
   const SOCIAL_ORDER = ['GitHub', 'LinkedIn', 'Instagram', 'Facebook', 'LINE']
   const socialList = SOCIAL_ORDER.map((label) => [...CAREER_LINKS, ...SOCIAL_LINKS].find((l) => l.label === label)!)
@@ -54,6 +68,11 @@
       onReverseComplete: () => {
         visible.value = false
         ;[...navLabels, ...navExtras, ...subTexts].forEach((t) => t.hide())
+        if (pendingRoute) {
+          const to = pendingRoute
+          pendingRoute = null
+          navigateTo(to)
+        }
       }
     })
 
@@ -80,7 +99,7 @@
   // 文字逐字解碼：時間點對齊 timeline 中各項目的進場
   const playTexts = () => {
     navLabels.forEach((t, i) => t.play((OPEN_AT + i * ITEM_STAGGER) * 1000))
-    navExtras[activeIndex]?.play((OPEN_AT + activeIndex * ITEM_STAGGER) * 1000 + 200)
+    navExtras[activeIndex.value]?.play((OPEN_AT + activeIndex.value * ITEM_STAGGER) * 1000 + 200)
     subTexts.forEach((t, i) => t.play((OPEN_AT + 0.2) * 1000 + i * 40))
   }
 
@@ -168,12 +187,13 @@
                     v-for="(item, i) in navList"
                     :key="item.label"
                     :ref="(el) => (navItems[i] = el as HTMLElement)"
-                    href="#"
+                    :href="item.to ?? '#'"
                     class="menu-item"
-                    :class="{ 'is-active': i === activeIndex }"
+                    :class="{ 'is-active': i === activeIndex, 'is-disabled': !item.to }"
                     :aria-current="i === activeIndex ? 'page' : undefined"
+                    :aria-disabled="!item.to || undefined"
                     @mouseenter="onNavEnter(i)"
-                    @click.prevent="close"
+                    @click.prevent="onNavClick(i)"
                   >
                     <span class="menu-item-bg clip-br-bevel"></span>
                     <AtomsHackyText
@@ -433,6 +453,23 @@
     }
     .menu-item-extra {
       opacity: 1;
+    }
+  }
+
+  /* 尚未製作的分頁：降低透明度提示不可用 */
+  /* 透明度設在子層：項目本身的 opacity 由開啟動畫（gsap）控制，設在項目上會被覆蓋 */
+  .menu-item.is-disabled {
+    cursor: not-allowed;
+
+    .menu-item-label {
+      opacity: 0.35;
+    }
+
+    &:hover .menu-item-bg {
+      opacity: 0;
+    }
+    &:hover .menu-item-label {
+      color: inherit;
     }
   }
 

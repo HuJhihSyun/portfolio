@@ -13,9 +13,6 @@
     { label: 'Contact', key: 'contact' }
   ]
 
-  // 側選單開關（漢堡按鈕開啟，SideMenu 內的關閉鈕 / 遮罩 / Esc 關閉）
-  const menuOpen = ref(false)
-
   const profileText = `Senior Front-End Engineer & Designer with 5+ years of experience specializing in the Vue ecosystem (Vue/Nuxt) and high-performance e-commerce platforms. Expert in blending design with code to build immersive, interactive web experiences using GSAP and D3.js. Proven track record in optimizing web performance (LCP/CLS) and delivering scalable architectures from concept to deployment.`
   const profileText2 = `My journey into web development began at the intersection of aesthetics and logic. Early in my career, I acted as both a visual designer and front-end developer, mastering the art of storytelling through engaging interactions and rich animations with GSAP and D3.js. This dual perspective instilled in me a deep sensitivity to user experience that continues to guide my engineering decisions today.`
 
@@ -95,20 +92,9 @@
   // 位置 / 尺寸 / 傾斜由 index.vue 的主 timeline 補間
   const ring = ref<{ play: () => void; pause: () => void; setInteractive: (value: boolean) => void } | null>(null)
 
-  // 右側直欄的頁面進度條（參考 kprverse 外框的半透明進度填色）：由 index.vue 在主 timeline 更新時呼叫。
-  // 直接寫 CSS 變數與文字（不經 Vue 響應式），每幀更新也不會觸發重新渲染
-  const progressCol = ref<HTMLElement | null>(null)
-  const progressText = ref<HTMLElement | null>(null)
-  let lastPercent = -1
-  const setProgress = (progress: number) => {
-    const p = Math.min(1, Math.max(0, progress))
-    progressCol.value?.style.setProperty('--scroll-progress', String(p))
-    const percent = Math.round(p * 100)
-    if (percent !== lastPercent && progressText.value) {
-      lastPercent = percent
-      progressText.value.textContent = `${String(percent).padStart(3, '0')}%`
-    }
-  }
+  // 右側直欄的頁面進度條在共用外框 PanelShell 內，由 index.vue 在主 timeline 更新時經此轉呼叫
+  const shell = ref<{ setProgress: (progress: number) => void } | null>(null)
+  const setProgress = (progress: number) => shell.value?.setProgress(progress)
 
   // 暴露給父層（index.vue）呼叫
   defineExpose({
@@ -128,217 +114,108 @@
 </script>
 
 <template>
-  <!-- 行動版（< md）外框內距縮為 12px、圓角縮小；中段改以 flex-1 填滿頂列以外的高度 -->
-  <div
-    class="panel fixed flex flex-col w-[calc(100vw-24px)] h-[calc(100dvh-24px)] md:w-[calc(100vw-48px)] md:h-[calc(100dvh-48px)] border-[0.5px] rounded-lg md:rounded-xl overflow-hidden"
-  >
-    <div class="p-line top flex justify-between md:justify-center items-center border-b-[0.5px]">
-      <span class="panel-chip text-xs font-bold pl-4 pr-5 md:pl-6 md:pr-7 py-3 whitespace-nowrap clip-br-bevel"
-        >My Portfolio</span
+  <!-- 外框（頂列 / 右側直欄 / 側選單）由 PanelShell 共用；這裡只放首頁五幕的內容 -->
+  <PanelShell ref="shell" :items="menuList" @navigate="(key) => emit('navigate', key)">
+    <!-- overflow-clip（而非 hidden）：第五幕表單欄位取得焦點時，瀏覽器不會自行捲動 main 而打亂 timeline 控制的版面 -->
+    <main ref="mainEl" class="relative w-full h-full overflow-clip">
+      <!-- 第一幕：行動版文字與標題改為滿寬，上下分置避免重疊。
+           外層 headerText 由 index.vue 控制淡出（文字與捲動提示徽章一起退場）；relative z-10 讓徽章疊在第二幕的透明元素之上、可被點擊 -->
+      <div ref="headerText" class="relative z-10 w-full md:w-1/2">
+        <article
+          class="hero-shadow leading-relaxed text-sm md:leading-normal p-4 md:p-6"
+          v-html="profileOutput"
+        ></article>
+        <!-- 捲動提示徽章：點擊後捲到第二幕（About）；徽章本身在 loading 結束、文字解碼時一起淡入 -->
+        <!-- 進場淡入放在外層：避免 CSS transition 干擾徽章點擊時 gsap 的放大淡出 -->
+        <div
+          class="badge-in ml-4 w-fit md:ml-6 max-md:[@media(max-height:700px)]:hidden"
+          :class="{ 'is-entered': entered }"
+        >
+          <AtomsScrollBadge ref="scrollBadge" class="size-28 md:size-32" @click="emit('navigate', 'about')" />
+        </div>
+      </div>
+      <article
+        class="hero-shadow absolute flex flex-col items-end right-0 bottom-0 w-full md:w-1/2 text-5xl md:text-7xl lg:text-8xl [@media(max-height:500px)]:text-5xl text-right p-4 md:p-6 leading-none"
       >
-      <!-- 行動版寬度不足以放下選單，先隱藏（待選單有實際連結後再改為漢堡選單） -->
-      <nav class="hidden md:flex w-full justify-center items-center text-xs px-6 py-3">
-        <ul class="flex justify-center items-center gap-6 lg:gap-8 text-xs">
-          <li v-for="item in menuList" :key="item.key">
-            <button type="button" class="nav-link" @click="emit('navigate', item.key)">{{ item.label }}</button>
-          </li>
-        </ul>
-      </nav>
-      <span class="p-line flex self-stretch border-l-[0.5px]">
-        <AtomsBurgerButton class="px-3 py-3.25" :expanded="menuOpen" @click="menuOpen = true" />
-      </span>
-    </div>
-    <div class="middle w-full flex-1 min-h-0 flex justify-center items-center">
-      <!-- overflow-clip（而非 hidden）：第五幕表單欄位取得焦點時，瀏覽器不會自行捲動 main 而打亂 timeline 控制的版面 -->
-      <main ref="mainEl" class="relative w-full h-full overflow-clip">
-        <!-- 第一幕：行動版文字與標題改為滿寬，上下分置避免重疊。
-             外層 headerText 由 index.vue 控制淡出（文字與捲動提示徽章一起退場）；relative z-10 讓徽章疊在第二幕的透明元素之上、可被點擊 -->
-        <div ref="headerText" class="relative z-10 w-full md:w-1/2">
-          <article
-            class="hero-shadow leading-relaxed text-sm md:leading-normal p-4 md:p-6"
-            v-html="profileOutput"
-          ></article>
-          <!-- 捲動提示徽章：點擊後捲到第二幕（About）；徽章本身在 loading 結束、文字解碼時一起淡入 -->
-          <!-- 進場淡入放在外層：避免 CSS transition 干擾徽章點擊時 gsap 的放大淡出 -->
-          <div
-            class="badge-in ml-4 w-fit md:ml-6 max-md:[@media(max-height:700px)]:hidden"
-            :class="{ 'is-entered': entered }"
+        <h2
+          v-for="(item, index) in mainTitle"
+          :key="item.text"
+          class="line-reveal"
+          :class="{ 'is-entering': entered, 'is-exiting': exiting }"
+          :style="`--i: ${index}`"
+        >
+          <span class="line-reveal-text"
+            ><sup class="text-xs md:text-sm lg:text-base">0{{ index + 1 }}</sup
+            >{{ item.text }}</span
           >
-            <AtomsScrollBadge ref="scrollBadge" class="size-28 md:size-32" @click="emit('navigate', 'about')" />
+        </h2>
+      </article>
+      <!-- 第二幕角色欄：行動版置於左下（佔下方 58%，矮螢幕 45% 讓出空間給內文），桌機版為左側 1/3 滿高 -->
+      <div
+        ref="characterWrap"
+        class="absolute left-0 bottom-0 hidden md:flex w-1/2 h-[58%] max-md:[@media(max-height:640px)]:h-[45%] border-t-[0.5px] border-r-[0.5px] p-line p-4 md:top-0 md:w-1/3 md:h-full md:border-t-0 md:p-6"
+      >
+        <!-- perspective 容器 + 卡片層：卡片以右緣為軸做 3D 翻開（由 index.vue 的 ScrollTrigger 驅動） -->
+        <div class="w-full h-full perspective-distant">
+          <div ref="characterCard" class="w-full h-full">
+            <TechFrame
+              :strokeWidth="0"
+              :bottom-left="{ type: 'notch', size: '50%', depth: '24px', radius: '12px', orientation: 'vertical' }"
+              class="w-full h-full"
+            >
+              <img :src="aboutPic" alt="about" class="will-change-transform" :style="{ transform: characterTilt }" />
+            </TechFrame>
           </div>
+        </div>
+      </div>
+      <!-- 第二幕右側區塊：行動版為上半部滿寬，桌機版為右側 2/3 -->
+      <div ref="aboutWrap" class="absolute flex flex-col items-end right-0 top-0 w-full md:w-2/3">
+        <div
+          ref="nameWrap"
+          class="w-full border-b-[0.5px] p-line px-4 md:px-6 py-3 flex justify-end text-2xl md:text-4xl lg:text-5xl"
+        >
+          <!-- Block Reveal：下捲時白色橫條劃過後名字顯現（由 nameState 控制進退場） -->
+          <span
+            class="scroll-reveal"
+            :class="{ 'is-revealing': nameState === 'in', 'is-exiting': nameState === 'out' }"
+          >
+            <span class="scroll-reveal-text">JHIH-SYUN HU</span>
+          </span>
         </div>
         <article
-          class="hero-shadow absolute flex flex-col items-end right-0 bottom-0 w-full md:w-1/2 text-5xl md:text-7xl lg:text-8xl [@media(max-height:500px)]:text-5xl text-right p-4 md:p-6 leading-none"
-        >
-          <h2
-            v-for="(item, index) in mainTitle"
-            :key="item.text"
-            class="line-reveal"
-            :class="{ 'is-entering': entered, 'is-exiting': exiting }"
-            :style="`--i: ${index}`"
-          >
-            <span class="line-reveal-text"
-              ><sup class="text-xs md:text-sm lg:text-base">0{{ index + 1 }}</sup
-              >{{ item.text }}</span
-            >
-          </h2>
-        </article>
-        <!-- 第二幕角色欄：行動版置於左下（佔下方 58%，矮螢幕 45% 讓出空間給內文），桌機版為左側 1/3 滿高 -->
-        <div
-          ref="characterWrap"
-          class="absolute left-0 bottom-0 hidden md:flex w-1/2 h-[58%] max-md:[@media(max-height:640px)]:h-[45%] border-t-[0.5px] border-r-[0.5px] p-line p-4 md:top-0 md:w-1/3 md:h-full md:border-t-0 md:p-6"
-        >
-          <!-- perspective 容器 + 卡片層：卡片以右緣為軸做 3D 翻開（由 index.vue 的 ScrollTrigger 驅動） -->
-          <div class="w-full h-full perspective-distant">
-            <div ref="characterCard" class="w-full h-full">
-              <TechFrame
-                :strokeWidth="0"
-                :bottom-left="{ type: 'notch', size: '50%', depth: '24px', radius: '12px', orientation: 'vertical' }"
-                class="w-full h-full"
-              >
-                <img :src="aboutPic" alt="about" class="will-change-transform" :style="{ transform: characterTilt }" />
-              </TechFrame>
-            </div>
-          </div>
-        </div>
-        <!-- 第二幕右側區塊：行動版為上半部滿寬，桌機版為右側 2/3 -->
-        <div ref="aboutWrap" class="absolute flex flex-col items-end right-0 top-0 w-full md:w-2/3">
-          <div
-            ref="nameWrap"
-            class="w-full border-b-[0.5px] p-line px-4 md:px-6 py-3 flex justify-end text-2xl md:text-4xl lg:text-5xl"
-          >
-            <!-- Block Reveal：下捲時白色橫條劃過後名字顯現（由 nameState 控制進退場） -->
-            <span
-              class="scroll-reveal"
-              :class="{ 'is-revealing': nameState === 'in', 'is-exiting': nameState === 'out' }"
-            >
-              <span class="scroll-reveal-text">JHIH-SYUN HU</span>
-            </span>
-          </div>
-          <article
-            ref="aboutText"
-            class="w-full md:w-4/5 lg:w-3/5 leading-[1.6] text-sm md:leading-normal p-4 md:p-6"
-            v-html="aboutOutput"
-          ></article>
-        </div>
-        <!-- 第二幕背景小圖的落點（不可見的定位參考）：index.vue 量測此元素的位置與尺寸，把背景大圖縮放到這裡。行動版為右下直式卡片，桌機版對齊右側內文、350×200 橫式 -->
-        <div
-          ref="bgSlot"
-          class="invisible absolute pointer-events-none right-4 bottom-4 w-[calc(100%-32px)] aspect-4/3 md:right-auto md:left-[calc(100%/3+24px)] md:bottom-6 md:w-87.5 md:h-50 md:aspect-auto"
-        ></div>
-        <SkillsBoard ref="skills" />
-        <WorksBoard ref="works" />
-        <!-- 環狀文字：排在 ContactBoard 之前，飛到第五幕後墊在聯絡內容底下。
-             外層（ringFloat）負責位置、尺寸與傾斜角，內層（ringFade）負責第五幕時淡化成背景圖騰 -->
-        <div ref="ringFloat" class="invisible absolute left-0 top-0 pointer-events-none">
-          <div ref="ringFade">
-            <AtomsTextRing
-              ref="ring"
-              text="Start a conversation"
-              class="pointer-events-auto"
-              @click="emit('navigate', 'contact')"
-            />
-          </div>
-        </div>
-        <ContactBoard ref="contact" />
-      </main>
-      <div
-        ref="progressCol"
-        class="p-line relative h-full text-xs px-3 py-3 flex flex-col items-center whitespace-nowrap border-l-[0.5px]"
-      >
-        <!-- 頁面進度：半透明填色由上往下推進，下緣一條細線標示目前位置（顏色隨 Panel 主題色） -->
-        <span class="progress-fill" aria-hidden="true"></span>
-        <span class="progress-edge" aria-hidden="true"></span>
-        <div class="relative flex flex-1 items-center justify-center">
-          <span class="text-[11px] leading-5 md:leading-8 md:text-xs font-normal [writing-mode:vertical-rl] uppercase"
-            >Side Project by Syun</span
-          >
-        </div>
-        <!-- 底部補上與頂部選單列等高的空白：上下扣除的高度相同，文字便置中於整個 Panel 高度，
-             與側選單窄欄（滿高、文字置中）的同一行字對齊 -->
-        <!-- 此空白同時放進度百分比：百分比絕對定位置中，不撐開直欄寬度（行動版直書字只有 20px 寬，
-             百分比約 32px，若參與排版會把直欄撐得比頂部漢堡格寬，兩格就對不齊） -->
-        <span class="relative h-[41px] w-full shrink-0" aria-hidden="true">
-          <span
-            ref="progressText"
-            class="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-[10px] tracking-wider tabular-nums opacity-70"
-            >000%</span
-          >
-        </span>
+          ref="aboutText"
+          class="w-full md:w-4/5 lg:w-3/5 leading-[1.6] text-sm md:leading-normal p-4 md:p-6"
+          v-html="aboutOutput"
+        ></article>
       </div>
-    </div>
-    <SideMenu v-model:open="menuOpen" />
-  </div>
+      <!-- 第二幕背景小圖的落點（不可見的定位參考）：index.vue 量測此元素的位置與尺寸，把背景大圖縮放到這裡。行動版為右下直式卡片，桌機版對齊右側內文、350×200 橫式 -->
+      <div
+        ref="bgSlot"
+        class="invisible absolute pointer-events-none right-4 bottom-4 w-[calc(100%-32px)] aspect-4/3 md:right-auto md:left-[calc(100%/3+24px)] md:bottom-6 md:w-87.5 md:h-50 md:aspect-auto"
+      ></div>
+      <SkillsBoard ref="skills" />
+      <WorksBoard ref="works" />
+      <!-- 環狀文字：排在 ContactBoard 之前，飛到第五幕後墊在聯絡內容底下。
+           外層（ringFloat）負責位置、尺寸與傾斜角，內層（ringFade）負責第五幕時淡化成背景圖騰 -->
+      <div ref="ringFloat" class="invisible absolute left-0 top-0 pointer-events-none">
+        <div ref="ringFade">
+          <AtomsTextRing
+            ref="ring"
+            text="Start a conversation"
+            class="pointer-events-auto"
+            @click="emit('navigate', 'contact')"
+          />
+        </div>
+      </div>
+      <ContactBoard ref="contact" />
+    </main>
+  </PanelShell>
 </template>
 
 <style lang="scss" scoped>
-  /* 主題配色以 CSS 變數驅動，由 index.vue 的 ScrollTrigger 補間白 → 黑。
-     fallback 為白色主題，讓 Panel 單獨使用時也正常。 */
-  .panel {
-    color: var(--panel-fg, #fff); /* 文字色（子層繼承） */
-    border-color: var(--panel-line, rgb(255 255 255 / 0.5)); /* 外框線 */
-  }
-
   /* 內部各分隔線 */
   .p-line {
     border-color: var(--panel-line, rgb(255 255 255 / 0.5));
-  }
-
-  /* 頂部選單：hover 時底線由左往右畫出 */
-  .nav-link {
-    position: relative;
-    cursor: pointer;
-
-    &::after {
-      content: '';
-      position: absolute;
-      left: 0;
-      right: 0;
-      bottom: -3px;
-      height: 1px;
-      background: currentColor;
-      transform: scaleX(0);
-      transform-origin: left;
-      transition: transform 0.3s cubic-bezier(0.7, 0, 0.3, 1);
-    }
-
-    &:hover::after,
-    &:focus-visible::after {
-      transform: scaleX(1);
-    }
-
-    &:focus-visible {
-      outline: none;
-    }
-  }
-
-  /* 反白的 My Portfolio 標籤：底色 = 前景色、文字 = 背景色 */
-  .panel-chip {
-    background: var(--panel-fg, #fff);
-    color: var(--panel-bg, #000);
-  }
-
-  /* 第一幕文字壓在主視覺上：加背景色陰影（近身陰影勾邊 + 大範圍柔光壓暗），避免與圖片重疊時看不清。
-     陰影色取 --panel-bg，配色補間到第二幕時跟著反轉，不會在黑字周圍留下黑影 */
-  /* 右側直欄的頁面進度：填色以 scaleY 縮放（只動 transform，每幀更新不重新排版） */
-  .progress-fill {
-    position: absolute;
-    inset: 0;
-    background: var(--panel-fg, #fff);
-    opacity: 0.03;
-    transform: scaleY(var(--scroll-progress, 0));
-    transform-origin: top;
-    pointer-events: none;
-  }
-
-  /* 填色下緣的細線：整層高度同直欄，以 translateY（百分比 = 自身高度）移到進度位置 */
-  .progress-edge {
-    position: absolute;
-    inset: 0;
-    border-top: 1px solid var(--panel-fg, #fff);
-    opacity: 0.2;
-    transform: translateY(calc(var(--scroll-progress, 0) * 100% - 1px));
-    pointer-events: none;
   }
 
   /* 捲動提示徽章進場：loading 結束後（entered）與左上文字解碼同時淡入、由小放大 */
@@ -355,6 +232,8 @@
     }
   }
 
+  /* 第一幕文字壓在主視覺上：加背景色陰影（近身陰影勾邊 + 大範圍柔光壓暗），避免與圖片重疊時看不清。
+     陰影色取 --panel-bg，配色補間到第二幕時跟著反轉，不會在黑字周圍留下黑影 */
   .hero-shadow {
     text-shadow:
       0 1px 2px color-mix(in srgb, var(--panel-bg, #000) 70%, transparent),

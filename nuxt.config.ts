@@ -23,6 +23,7 @@ export default defineNuxtConfig({
 
   app: {
     head: {
+      title: 'Syun | Portfolio', // 預設標題（首頁）；其他頁以 useHead 覆寫，換頁回首頁時會還原
       charset: 'utf-8',
       viewport: 'width=device-width, initial-scale=1',
       htmlAttrs: { lang: 'zh-Hant' },

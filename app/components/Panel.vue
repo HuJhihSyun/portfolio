@@ -2,6 +2,7 @@
   import { ref, reactive, nextTick, onMounted, onBeforeUnmount } from 'vue'
   import type gsap from 'gsap'
   import aboutPic from '@/assets/images/about.webp'
+  import { SITE } from '#shared/site'
 
   // 頂部選單：點擊後通知父層（index.vue）捲到對應區塊（key 對應 index.vue 的 sectionTimes）
   type SectionKey = 'about' | 'skills' | 'works' | 'contact'
@@ -118,13 +119,17 @@
   <PanelShell ref="shell" :items="menuList" @navigate="(key) => emit('navigate', key)">
     <!-- overflow-clip（而非 hidden）：第五幕表單欄位取得焦點時，瀏覽器不會自行捲動 main 而打亂 timeline 控制的版面 -->
     <main ref="mainEl" class="relative w-full h-full overflow-clip">
+      <!-- 頁面主標題（SEO / 螢幕閱讀器用，視覺上隱藏）：首頁的視覺標題為「Code. Design. Interact.」動畫字 -->
+      <h1 class="sr-only">{{ SITE.name }}（{{ SITE.nickname }}）｜{{ SITE.jobTitle }}・{{ SITE.jobTitleZh }}</h1>
       <!-- 第一幕：行動版文字與標題改為滿寬，上下分置避免重疊。
            外層 headerText 由 index.vue 控制淡出（文字與捲動提示徽章一起退場）；relative z-10 讓徽章疊在第二幕的透明元素之上、可被點擊 -->
       <div ref="headerText" class="relative z-10 w-full md:w-1/2">
-        <article
-          class="hero-shadow leading-relaxed text-sm md:leading-normal p-4 md:p-6"
-          v-html="profileOutput"
-        ></article>
+        <!-- 亂碼解碼從空字串開始播放，伺服器輸出的 HTML 會沒有內文：另放一份完整原文（視覺隱藏）供搜尋引擎與螢幕閱讀器讀取，
+             動畫文字則標為 aria-hidden，避免重複朗讀 -->
+        <article class="hero-shadow leading-relaxed text-sm md:leading-normal p-4 md:p-6">
+          <span class="sr-only">{{ profileText }}</span>
+          <span aria-hidden="true" v-html="profileOutput"></span>
+        </article>
         <!-- 捲動提示徽章：點擊後捲到第二幕（About）；徽章本身在 loading 結束、文字解碼時一起淡入 -->
         <!-- 進場淡入放在外層：避免 CSS transition 干擾徽章點擊時 gsap 的放大淡出 -->
         <div
@@ -182,11 +187,10 @@
             <span class="scroll-reveal-text">JHIH-SYUN HU</span>
           </span>
         </div>
-        <article
-          ref="aboutText"
-          class="w-full md:w-4/5 lg:w-3/5 leading-[1.6] text-sm md:leading-normal p-4 md:p-6"
-          v-html="aboutOutput"
-        ></article>
+        <article ref="aboutText" class="w-full md:w-4/5 lg:w-3/5 leading-[1.6] text-sm md:leading-normal p-4 md:p-6">
+          <span class="sr-only">{{ profileText2 }}</span>
+          <span aria-hidden="true" v-html="aboutOutput"></span>
+        </article>
       </div>
       <!-- 第二幕背景小圖的落點（不可見的定位參考）：index.vue 量測此元素的位置與尺寸，把背景大圖縮放到這裡。行動版為右下直式卡片，桌機版對齊右側內文、350×200 橫式 -->
       <div

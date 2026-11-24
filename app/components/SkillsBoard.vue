@@ -167,10 +167,11 @@
       <div class="md:col-span-2 flex flex-col gap-8 md:gap-0 md:justify-between p-4 md:p-6">
         <header>
           <p class="text-xs tracking-widest opacity-70">[ 02 ] SKILLS &amp; JOURNEY</p>
-          <h2
-            class="mt-3 min-h-[2em] text-3xl md:text-5xl lg:text-6xl uppercase leading-none"
-            v-html="headingOutput"
-          ></h2>
+          <!-- 完整原文（視覺隱藏）供搜尋引擎讀取，亂碼動畫標為 aria-hidden（同 Panel） -->
+          <h2 class="mt-3 min-h-[2em] text-3xl md:text-5xl lg:text-6xl uppercase leading-none">
+            <span class="sr-only">{{ heading }}</span>
+            <span aria-hidden="true" v-html="headingOutput"></span>
+          </h2>
         </header>
 
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-10 gap-y-6 md:gap-y-8">

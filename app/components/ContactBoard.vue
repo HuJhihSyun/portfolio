@@ -187,14 +187,16 @@
               <!-- 每行預留高度（min-h-[1em]）：解碼前為空字串，避免標題撐高版面造成跳動 -->
               <h2
                 class="mt-3 text-[clamp(2rem,12vw,3rem)] uppercase leading-none whitespace-nowrap md:text-6xl lg:text-7xl"
-                :aria-label="headingLines.join(' ')"
               >
+                <!-- 完整原文（視覺隱藏）供搜尋引擎讀取，亂碼動畫標為 aria-hidden（同 Panel） -->
+                <span class="sr-only">{{ headingLines.join(' ') }}</span>
                 <!-- 行動版兩行並排成一行（字級隨螢幕寬縮放），桌機版各佔一行 -->
                 <span
                   v-for="(h, i) in headingScrambles"
                   :key="headingLines[i]"
                   class="inline-block min-h-[1em] md:block"
                   :class="{ 'ml-[0.3em] md:ml-0': i > 0 }"
+                  aria-hidden="true"
                   v-html="h.output.value"
                 ></span>
               </h2>

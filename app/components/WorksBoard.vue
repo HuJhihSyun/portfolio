@@ -332,8 +332,11 @@
                行動版矮螢幕隱藏（與上方標籤重複），把高度讓給輪播 -->
           <h2
             class="mt-3 min-h-[1em] md:min-h-[2em] max-md:[@media(max-height:700px)]:hidden text-2xl lg:text-4xl uppercase leading-none"
-            v-html="titleOutput"
-          ></h2>
+          >
+            <!-- 完整原文（視覺隱藏）供搜尋引擎讀取，亂碼動畫標為 aria-hidden（同 Panel） -->
+            <span class="sr-only">{{ summary.title }}</span>
+            <span aria-hidden="true" v-html="titleOutput"></span>
+          </h2>
           <!-- 行動版矮螢幕隱藏說明，把高度讓給輪播 -->
           <p class="mt-3 text-xs md:text-sm leading-relaxed opacity-80 max-md:[@media(max-height:700px)]:hidden">
             {{ summary.desc }}

@@ -23,7 +23,7 @@ export default defineNuxtConfig({
 
   app: {
     head: {
-      title: 'Syun | Portfolio', // 預設標題（首頁）；其他頁以 useHead 覆寫，換頁回首頁時會還原
+      title: 'Syun | Portfolio', // 備用標題；各頁以 useSiteSeo 設定實際標題（見 shared/site.ts）
       charset: 'utf-8',
       viewport: 'width=device-width, initial-scale=1',
       htmlAttrs: { lang: 'zh-Hant' },
@@ -46,6 +46,10 @@ export default defineNuxtConfig({
       user: '', // 寄件的 Gmail 帳號
       pass: '', // Gmail 應用程式密碼（非登入密碼）
       to: '' // 收件信箱；未設定時寄給 user 自己
+    },
+    public: {
+      // 正式網域（canonical、分享卡片、sitemap 的完整網址）：由 NUXT_PUBLIC_SITE_URL 覆寫；未設定時以目前請求的網址推算
+      siteUrl: ''
     }
   },
 

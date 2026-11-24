@@ -17,6 +17,10 @@
 
   gsap.registerPlugin(ScrollTrigger)
 
+  // SEO：標題 / 描述 / 分享卡片 / canonical，以及個人的結構化資料（內容見 shared/site.ts）
+  useSiteSeo('home')
+  usePersonSchema()
+
   const { tiltStyle } = useTilt({ max: 1, scale: 1.06 })
 
   const root = ref<HTMLElement | null>(null)

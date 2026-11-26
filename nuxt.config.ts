@@ -47,6 +47,17 @@ export default defineNuxtConfig({
       pass: '', // Gmail 應用程式密碼（非登入密碼）
       to: '' // 收件信箱；未設定時寄給 user 自己
     },
+    // Instagram 貼文（Gallery）：NUXT_INSTAGRAM_*（見 .env.example）。
+    // 未設定或取不到時，/api/gallery/posts 改回傳備用內容（server/fallback/instagram-posts.json）
+    instagram: {
+      userId: '', // Instagram 專業帳號編號（1784… 開頭）
+      accessToken: '', // 存取權杖（EAA… 開頭，透過 Facebook 登入的 Instagram API）
+      // App 編號與密鑰：用來自動檢查權杖效期、換成不會過期的粉專權杖（未設定則不自動維護，直接使用 accessToken）
+      appId: '',
+      appSecret: '',
+      apiVersion: 'v27.0',
+      limit: 12 // 取最新幾則貼文（Gallery 輪盤的長度依此而定）
+    },
     public: {
       // 正式網域（canonical、分享卡片、sitemap 的完整網址）：由 NUXT_PUBLIC_SITE_URL 覆寫；未設定時以目前請求的網址推算
       siteUrl: ''

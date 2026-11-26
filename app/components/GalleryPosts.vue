@@ -158,7 +158,14 @@
       { rotation: 16, autoAlpha: 0 },
       { rotation: 0, autoAlpha: 1, duration: reduceMotion ? 0 : 1.6, ease: 'expo.out', transformOrigin: ORIGIN }
     )
-    setTimeout(() => setCaption(bodyText(current.value)), reduceMotion ? 0 : 700)
+    setTimeout(
+      () => {
+        setCaption(bodyText(current.value))
+        videoAllowed = true
+        syncVideos()
+      },
+      reduceMotion ? 0 : 700
+    )
   }
 
   watch(
@@ -255,6 +262,7 @@
   // 各段落的起點（addTo 時算出），供捲動同步與吸附使用
   let browseAt = 0
   let sceneCaptionAt = Infinity
+  let collapseStart = Infinity // 卡片開始收合的時間點：之後停止播放影片
 
   const posAt = (time: number) => gsap.utils.clamp(0, Math.max(0, total.value - 1), (time - browseAt) / CARD)
   const timeOfCard = (index: number) => browseAt + gsap.utils.clamp(0, total.value - 1, index) * CARD
@@ -268,6 +276,7 @@
     browseAt = start + BROWSE_HOLD
     const browseEnd = browseAt + last * CARD
     const collapseAt = browseEnd + 0.4
+    collapseStart = collapseAt
     const flipOutAt = collapseAt + COLLAPSE
     const flipInAt = flipOutAt + FLIP_OUT
     const spreadAt = flipInAt + FLIP_IN
@@ -365,11 +374,28 @@
 
   // 捲動時由父層呼叫：依時間推算目前卡片（純計算，不依賴補間的回呼）、切換說明文字的解碼
   let sceneShown = false
+  // ── 影片自動播放：只播放中央那張（瀏覽段落、進場後），其餘暫停；偏好減少動態效果時不自動播放 ──
+  const videoEls: (HTMLVideoElement | null)[] = []
+  let videoAllowed = false
+  const syncVideos = () => {
+    videoEls.forEach((video, i) => {
+      if (!video) return
+      if (videoAllowed && !reduceMotion && i === active.value) {
+        if (video.paused) video.play().catch(() => {}) // 瀏覽器拒絕自動播放時保留封面
+      } else if (!video.paused) {
+        video.pause()
+      }
+    })
+  }
+
   const onScroll = (time: number) => {
     const index = Math.round(posAt(time))
-    if (index !== active.value) {
+    const allowed = introDone && time < collapseStart
+    if (index !== active.value || allowed !== videoAllowed) {
+      if (index !== active.value) setCaption(bodyText(items.value[index]))
       active.value = index
-      setCaption(bodyText(current.value))
+      videoAllowed = allowed
+      syncVideos()
     }
     const showScene = time >= sceneCaptionAt
     if (showScene !== sceneShown) {
@@ -491,7 +517,21 @@
                 v-bind="cardCorners[item.id]"
                 class="card-frame absolute inset-0"
               >
-                <img :src="item.image" :alt="item.title" class="card-img" loading="lazy" draggable="false" />
+                <!-- 影片貼文：靜音循環的影片（封面為縮圖），卡片轉到中央才載入並播放 -->
+                <video
+                  v-if="item.video"
+                  :ref="(el) => (videoEls[i] = el as HTMLVideoElement | null)"
+                  :src="item.video"
+                  :poster="item.image"
+                  class="card-img"
+                  muted
+                  loop
+                  playsinline
+                  preload="none"
+                  disablepictureinpicture
+                  :aria-label="item.title"
+                ></video>
+                <img v-else :src="item.image" :alt="item.title" class="card-img" loading="lazy" draggable="false" />
                 <!-- 下方漸層（文字底）＋ 非目前卡片的壓暗層：放在框內，跟著外框的形狀一起裁切 -->
                 <span class="card-gradient"></span>
                 <span class="card-shade"></span>

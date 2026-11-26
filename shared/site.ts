@@ -34,12 +34,12 @@ export const PAGES = {
     path: '/',
     title: () => `${displayName()}｜${SITE.jobTitleZh} Portfolio`,
     description: () =>
-      `${displayName()}的個人作品集。${SITE.jobTitleZh}（${SITE.jobTitle}），專精 Vue / Nuxt、GSAP 互動動畫、D3.js 資料視覺化與網站效能優化（LCP / CLS），以設計結合程式打造沉浸式網頁體驗。`
+      `${displayName()} 的個人作品集。${SITE.jobTitleZh}（${SITE.jobTitle}），專精 Vue / Nuxt、GSAP 互動動畫、D3.js 資料視覺化與網站效能優化（LCP / CLS），以設計結合程式打造沉浸式網頁體驗。`
   },
   gallery: {
     path: '/gallery',
-    title: () => `Gallery｜${displayName()}的 Instagram 日常與創作紀錄`,
+    title: () => `Gallery｜${displayName()} 的 Instagram 日常與創作紀錄`,
     description: () =>
-      `${displayName()}的 Gallery：Instagram 日常紀錄，包含街舞（Breaking）、城市散步，以及網站設計與互動動畫實驗的幕後片段。`
+      `${displayName()} 的 Gallery：Instagram 日常紀錄，包含街舞（Breaking）、城市散步，以及網站設計與互動動畫實驗的幕後片段。`
   }
 } as const

@@ -58,6 +58,11 @@ export default defineNuxtConfig({
       apiVersion: 'v27.0',
       limit: 12 // 取最新幾則貼文（Gallery 輪盤的長度依此而定）
     },
+    // Behance 作品（Gallery Works）：公開帳號，免金鑰；可由 NUXT_BEHANCE_USERNAME 覆寫，設為空字串則改用備用內容。
+    // 較早作品、描述、類別等手動補充見 server/content/behance-works.ts
+    behance: {
+      username: 'cj654vmp2069' // behance.net/ 後面的帳號
+    },
     public: {
       // 正式網域（canonical、分享卡片、sitemap 的完整網址）：由 NUXT_PUBLIC_SITE_URL 覆寫；未設定時以目前請求的網址推算
       siteUrl: ''

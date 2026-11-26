@@ -1,11 +1,13 @@
 import type { GalleryItem } from '#shared/gallery'
+import type { BehanceWork } from './behance'
 
 /**
  * 把各來源的原始資料轉成統一的 GalleryItem。
  * 型別對應官方 API 的回傳欄位：
  *   - Instagram：透過 Facebook 登入的 Instagram API，GET /{ig-user-id}/media（graph.facebook.com）
  *     （fields=id,caption,media_type,media_url,thumbnail_url,permalink,timestamp,like_count,comments_count,children{...}）
- *   - Behance：舊版 v2 API 的 projects 格式（官方已停止核發新金鑰，正式串接時可能改用 RSS 或手動維護資料）
+ *   - Behance：官方 API 已停止核發金鑰，改由個人 RSS ＋ oEmbed 取得（見 server/utils/behance.ts），
+ *     再合併 server/content/behance-works.ts 的手動補充
  */
 
 export interface InstagramMedia {
@@ -19,17 +21,6 @@ export interface InstagramMedia {
   like_count?: number
   comments_count?: number
   children?: { data: { id?: string; media_type: string; media_url: string; thumbnail_url?: string }[] }
-}
-
-export interface BehanceProject {
-  id: number
-  name: string
-  description?: string
-  url: string
-  published_on: number // Unix 秒
-  covers: Record<string, string>
-  fields: string[]
-  stats: { views: number; appreciations: number; comments: number }
 }
 
 const MEDIA_KIND: Record<InstagramMedia['media_type'], string> = {
@@ -68,17 +59,39 @@ export const fromInstagram = (media: InstagramMedia): GalleryItem => {
   }
 }
 
-export const fromBehance = (project: BehanceProject): GalleryItem => ({
-  id: String(project.id),
-  source: 'behance',
-  image: project.covers.original ?? Object.values(project.covers).at(-1) ?? '',
-  title: project.name,
-  caption: project.description ?? '',
-  date: new Date(project.published_on * 1000).toISOString(),
-  link: project.url,
-  kind: project.fields.join(' / '),
-  stats: [
-    { label: 'Appreciations', value: project.stats.appreciations },
-    { label: 'Views', value: project.stats.views }
-  ]
-})
+// Behance 標題常帶類別前綴，例如「【網頁設計】…」「平面設計-…」「網頁設計 | …」：拆出類別，其餘當標題
+const KIND_PREFIX = /^(?:【([^】]+)】|([\u4e00-\u9fff]{2,6})\s*[-|｜]\s*)/
+// 對應 Gallery Works 區的大類（server/content/behance-works.ts 可用「大類 · 細類」覆寫成更細的分類）
+const KIND_NAME: Record<string, string> = {
+  網頁設計: 'Web',
+  網站設計: 'Web',
+  平面設計: 'Graphic'
+}
+
+export interface BehanceOverride {
+  title?: string
+  caption?: string
+  kind?: string
+  date?: string
+}
+
+export const fromBehance = (work: BehanceWork, override: BehanceOverride = {}): GalleryItem => {
+  const match = work.title.match(KIND_PREFIX)
+  const rawKind = match?.[1] ?? match?.[2]
+  let title = match ? work.title.slice(match[0].length) : work.title
+  // 個人作品的標題結尾常帶「 - 作者名」
+  if (work.author && title.endsWith(` - ${work.author}`)) title = title.slice(0, -` - ${work.author}`.length)
+  const date = override.date || work.publishedAt
+
+  return {
+    id: work.id,
+    source: 'behance',
+    image: work.cover,
+    title: override.title || title.trim() || 'Untitled',
+    caption: override.caption || work.description,
+    date: date ? new Date(date).toISOString() : '',
+    link: work.url,
+    kind: override.kind || (rawKind ? (KIND_NAME[rawKind] ?? rawKind) : 'Project'),
+    stats: [] // Behance 的讚數 / 觀看數沒有公開管道可取得
+  }
+}

@@ -1,0 +1,161 @@
+{
+  "_comment": "Behance 取不到時的備用內容（格式同 server/utils/behance.ts 的 BehanceWork）。由 2026-11-26 的即時資料產生，可自行增修；描述、類別等請改在 server/content/behance-works.ts 補充。",
+  "works": [
+    {
+      "id": "158510491",
+      "url": "https://www.behance.net/gallery/158510491/Basf-Interactive-experience-website",
+      "title": "【網頁設計】Basf 環境用藥篇互動式網站－Interactive experience website",
+      "cover": "https://mir-s3-cdn-cf.behance.net/projects/max_808_webp/857ef3158510491.Y3JvcCw1ODM1LDQ1NjQsMCww.png",
+      "publishedAt": "2022-12-05T06:41:25.000Z",
+      "description": "",
+      "author": "正平整合行銷 AccessUs"
+    },
+    {
+      "id": "157699859",
+      "url": "https://www.behance.net/gallery/157699859/-DM",
+      "title": "平面設計-知名品牌印表機 DM - 胡 智勛",
+      "cover": "https://mir-s3-cdn-cf.behance.net/projects/max_808_webp/70eb36157699859.Y3JvcCwxMTUwLDkwMCwyNSww.jpg",
+      "publishedAt": "2022-11-23T08:14:25.000Z",
+      "description": "",
+      "author": "胡 智勛"
+    },
+    {
+      "id": "148729665",
+      "url": "https://www.behance.net/gallery/148729665/-2019-x-FUN-",
+      "title": "網頁設計-2019 幸福 x 好孕 FUN 心提案",
+      "cover": "https://mir-s3-cdn-cf.behance.net/projects/max_808_webp/5a1dfe148729665.Y3JvcCwxMzAzLDEwMTksNTEsNjQ.jpg",
+      "publishedAt": "2022-07-22T09:57:23.000Z",
+      "description": "",
+      "author": "正平整合行銷 AccessUs"
+    },
+    {
+      "id": "148208039",
+      "url": "https://www.behance.net/gallery/148208039/wellnesswellness-website",
+      "title": "【網頁設計】wellness健康促進個人化網站－wellness website",
+      "cover": "https://mir-s3-cdn-cf.behance.net/projects/max_808_webp/f63711148208039.Y3JvcCw0MTU4LDMyNTIsNzkyLDYx.png",
+      "publishedAt": "2022-07-15T08:58:54.000Z",
+      "description": "",
+      "author": "正平整合行銷 AccessUs"
+    },
+    {
+      "id": "148205879",
+      "url": "https://www.behance.net/gallery/148205879/-Take-Our-Children-to-Work-DM",
+      "title": "平面設計-Take Our Children to Work DM - 胡 智勛",
+      "cover": "https://mir-s3-cdn-cf.behance.net/projects/max_808_webp/fd35a5148205879.Y3JvcCwxMzQyLDEwNTAsMzYsMA.jpg",
+      "publishedAt": "2022-07-15T08:18:40.000Z",
+      "description": "",
+      "author": "胡 智勛"
+    },
+    {
+      "id": "148195493",
+      "url": "https://www.behance.net/gallery/148195493/-Forge-",
+      "title": "網頁設計-Forge基礎訓練工作坊 & 建築產業趨勢論壇 - 胡 智勛",
+      "cover": "https://mir-s3-cdn-cf.behance.net/projects/max_808_webp/cb087b148195493.Y3JvcCwxMTU0LDkwMywxMjIsNzQ.jpg",
+      "publishedAt": "2022-07-15T03:47:31.000Z",
+      "description": "",
+      "author": "胡 智勛"
+    },
+    {
+      "id": "147958027",
+      "url": "https://www.behance.net/gallery/147958027/-2019-Well-Beyond-Event-",
+      "title": "網頁設計-2019 Well Beyond Event 電子報",
+      "cover": "https://mir-s3-cdn-cf.behance.net/projects/max_808_webp/59721a147958027.Y3JvcCwxMzM0LDEwNDMsMzYsNDI.jpg",
+      "publishedAt": "2022-07-12T02:06:35.000Z",
+      "description": "",
+      "author": "正平整合行銷 AccessUs"
+    },
+    {
+      "id": "147424833",
+      "url": "https://www.behance.net/gallery/147424833/Interactive-experience-website",
+      "title": "【網頁設計】巴斯夫水稻篇互動式網站－Interactive experience website",
+      "cover": "https://mir-s3-cdn-cf.behance.net/projects/max_808_webp/ae2245147424833.Y3JvcCwxNDAwLDEwOTUsMCww.png",
+      "publishedAt": "2022-07-04T10:37:01.000Z",
+      "description": "",
+      "author": "正平整合行銷 AccessUs"
+    },
+    {
+      "id": "144331411",
+      "url": "https://www.behance.net/gallery/144331411/2021-Autodesk-Converge-",
+      "title": "【網頁設計】2021 Autodesk Converge 創新高峰會",
+      "cover": "https://mir-s3-cdn-cf.behance.net/projects/max_808_webp/e37bc3144331411.Y3JvcCwxNDAwLDEwOTUsMCww.jpg",
+      "publishedAt": "2022-05-23T03:56:57.000Z",
+      "description": "",
+      "author": "正平整合行銷 AccessUs"
+    },
+    {
+      "id": "140207411",
+      "url": "https://www.behance.net/gallery/140207411/Autodesk-Bim-Award-",
+      "title": "【網頁設計】Autodesk Bim Award 數位應用創新獎",
+      "cover": "https://mir-s3-cdn-cf.behance.net/projects/max_808_webp/911fb4140207411.Y3JvcCwxNzE5LDEzNDQsMTEwLDA.jpg",
+      "publishedAt": "2022-03-25T02:36:31.000Z",
+      "description": "",
+      "author": "正平整合行銷 AccessUs"
+    },
+    {
+      "id": "137439655",
+      "url": "https://www.behance.net/gallery/137439655/_",
+      "title": "【網站設計】互動計時問答遊戲網站",
+      "cover": "https://mir-s3-cdn-cf.behance.net/projects/max_808_webp/da0c35137439655.Y3JvcCw1ODM1LDQ1NjQsMCww.png",
+      "publishedAt": "2022-02-15T11:03:43.000Z",
+      "description": "",
+      "author": "正平整合行銷 AccessUs"
+    },
+    {
+      "id": "132634813",
+      "url": "https://www.behance.net/gallery/132634813/_",
+      "title": "【網頁設計】伊甸基金會線上畫廊",
+      "cover": "https://mir-s3-cdn-cf.behance.net/projects/max_808_webp/2ece22132634813.Y3JvcCwxMjc4LDEwMDAsNjAsMA.jpg",
+      "publishedAt": "2021-12-06T03:37:11.000Z",
+      "description": "",
+      "author": "正平整合行銷 AccessUs"
+    },
+    {
+      "id": "129157533",
+      "url": "https://www.behance.net/gallery/129157533/wanli-crab-10th-anniversary-exhibition",
+      "title": "【網頁設計】萬里蟹線上特展－wanli crab 10th anniversary exhibition",
+      "cover": "https://mir-s3-cdn-cf.behance.net/projects/max_808_webp/b729ef129157533.Y3JvcCwxMzM0LDEwNDMsMzMsMjY.png",
+      "description": "",
+      "author": "正平整合行銷 AccessUs"
+    },
+    {
+      "id": "129019039",
+      "url": "https://www.behance.net/gallery/129019039/-2020-Global-Wellness-Challenge-ver2",
+      "title": "網頁設計-2020 Global Wellness Challenge 運動電子報 ver.2",
+      "cover": "https://mir-s3-cdn-cf.behance.net/projects/max_808_webp/68c2fe129019039.Y3JvcCwxNzg1LDEzOTYsNzAsODg.jpg",
+      "description": "",
+      "author": "胡 智勛"
+    },
+    {
+      "id": "122402577",
+      "url": "https://www.behance.net/gallery/122402577/-2020-Global-Wellness-Challenge-",
+      "title": "網頁設計-2020 Global Wellness Challenge 運動電子報",
+      "cover": "https://mir-s3-cdn-cf.behance.net/projects/max_808_webp/546f3c122402577.Y3JvcCwxNzg1LDEzOTYsNzAsNzA.jpg",
+      "description": "",
+      "author": "正平整合行銷 AccessUs"
+    },
+    {
+      "id": "121244725",
+      "url": "https://www.behance.net/gallery/121244725/-%28%29",
+      "title": "網頁設計-想像力相談所(網頁端)",
+      "cover": "https://mir-s3-cdn-cf.behance.net/projects/max_808_webp/09cd7e121244725.Y3JvcCwxMzQyLDEwNTAsMjksMA.gif",
+      "description": "",
+      "author": "胡 智勛"
+    },
+    {
+      "id": "119329421",
+      "url": "https://www.behance.net/gallery/119329421/-2020-Power-of-Prevention-",
+      "title": "網頁設計-2020 Power of Prevention 健康生活提案",
+      "cover": "https://mir-s3-cdn-cf.behance.net/projects/max_808_webp/baf21d119329421.Y3JvcCwxNzg1LDEzOTYsNzAsOTI.jpg",
+      "description": "",
+      "author": "正平整合行銷 AccessUs"
+    },
+    {
+      "id": "114312609",
+      "url": "https://www.behance.net/gallery/114312609/_",
+      "title": "網頁設計 | 國立臺北大學多元專長培力方案招生網",
+      "cover": "https://mir-s3-cdn-cf.behance.net/projects/max_808_webp/bce0fb114312609.Y3JvcCwxNTM0LDEyMDAsMzcsMA.jpg",
+      "description": "",
+      "author": "胡 智勛"
+    }
+  ]
+}

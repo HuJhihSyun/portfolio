@@ -11,6 +11,8 @@
    * 3. 翻牌：整疊卡片轉成側面（一條細線），翻過來後浮現三張圖
    * 4. 展開：三張圖散開，中間那張擴展成滿版大圖，下方浮現說明文字
    * 三張圖是同一張大圖的三個「窗口」（滿版圖層以 clip-path 裁出），中間那張展開時畫面自然銜接成整張圖。
+   * 5. 換圖：大圖縮成帶外框角的卡片、傾斜往上滑走，下一張從下方傾斜滑入後展開（SCENES 依序）
+   * 6. 最後一張同樣滑走，讓位給接續的 Works 區（GalleryWorks，由 gallery.vue 接在 exitAt 之後）
    */
 
   const props = defineProps<{
@@ -36,13 +38,24 @@
     tag: 'IG'
   }
 
-  // 展開後的大圖與說明（假資料，之後替換）
-  const SCENE = {
-    image: 'https://picsum.photos/seed/syun-scene/1920/1200',
-    index: '002',
-    label: 'Behind the lens',
-    text: 'Every frame starts as a feeling — a move, a street corner, a line of code worth keeping. This is where the stories behind the posts live.'
-  }
+  // 展開後的滿版大圖與說明（假資料，之後替換）：第一張由翻牌的主圖展開；之後每張依序傾斜滑入、取代前一張。
+  // image 建議 16:9、至少 1920×1080；第二張起可加 video（MP4，靜音循環播放，image 當封面）
+  type Scene = { image: string; video?: string; index: string; label: string; text: string }
+  const SCENES: Scene[] = [
+    {
+      image: 'https://picsum.photos/seed/syun-scene/1920/1200',
+      index: '002',
+      label: 'Behind the lens',
+      text: 'Every frame starts as a feeling — a move, a street corner, a line of code worth keeping. This is where the stories behind the posts live.'
+    },
+    {
+      image: 'https://picsum.photos/seed/syun-scene-2/1920/1200',
+      index: '003',
+      label: 'On the floor',
+      text: 'Breaking taught me rhythm long before code did — every freeze, every drop, a moment worth holding onto.'
+    }
+  ]
+  const SLIDES = SCENES.slice(1) // 第二張起：獨立的滑入圖層
 
   // Instagram 帳號：取自側選單 / Footer 共用的連結資料（shared/profile.ts）
   const igUrl = SOCIAL_LINKS.find((link) => link.label === 'Instagram')?.url ?? 'https://www.instagram.com/'
@@ -142,6 +155,12 @@
   const sceneImg = ref<HTMLElement | null>(null)
   const sceneShade = ref<HTMLElement | null>(null)
   const sceneCaption = ref<HTMLElement | null>(null)
+  const mainTint = ref<HTMLElement | null>(null)
+  const slideEls = ref<HTMLElement[]>([])
+  const slideMedia = ref<HTMLElement[]>([])
+  const slideTints = ref<HTMLElement[]>([])
+  const sceneIndex = ref(0) // 目前顯示的大圖（說明文字跟著切換）
+  const scene = computed(() => SCENES[sceneIndex.value]!)
 
   let reduceMotion = false
 
@@ -183,6 +202,14 @@
   const SPREAD = 1 // 三張圖散開
   const EXPAND = 1.3 // 中間那張擴展成滿版
   const CAPTION = 0.5 // 說明文字浮現
+  const SCENE_HOLD = 0.8 // 每張大圖停留（閱讀說明）後才換下一張
+  const FRAME = 0.5 // 換圖：滿版縮成帶外框角的卡片、微微傾斜
+  const LEAVE = 0.8 // 換圖：卡片往上傾斜滑走
+  const ENTER_DELAY = 0.7 // 換圖：前一張開始動後多久，下一張從下方滑入（兩張之間保持一段空隙，不重疊）
+  const ENTER = 0.8 // 換圖：下一張滑入
+  const SETTLE = 0.5 // 換圖：下一張轉正、展開回滿版
+  // 滑動中的卡片外框角放大倍率：滿版大圖很大，角要比翻牌時明顯才看得出 TechFrame 外形
+  const CARD_CORNER = 2
 
   // 三張圖的位置與大小（視窗的 %，場景為全螢幕圖層）：compact = 剛翻出時聚在輪盤中央；spread = 散開；FULL = 全螢幕
   // 順序：左上直式、右下小張、主圖（最後一張在最上層，會展開成全螢幕）
@@ -259,9 +286,41 @@
     ]
   })
 
+  // 第二張起的大圖：滑動時帶外框角（同 TechFrame 語彙，每張輪流使用不同組合），轉正展開成滿版時收回成直角
+  const SLIDE_CORNERS: Corners[] = [
+    {
+      topLeft: { type: 'round', size: 18 },
+      topRight: { type: 'notch', size: '36%', depth: 22, radius: 10 },
+      bottomRight: { type: 'round', size: 18 },
+      bottomLeft: { type: 'bevel', size: 34 }
+    },
+    {
+      topLeft: { type: 'bevel', size: 34 },
+      topRight: { type: 'round', size: 18 },
+      bottomRight: { type: 'notch', size: 72, depth: 22, radius: 10 },
+      bottomLeft: { type: 'round', size: 18 }
+    }
+  ]
+  const slideCorner = SLIDES.map(() => ref(CARD_CORNER)) // 外框角倍率：CARD_CORNER = 滑動中的卡片，0 = 直角（滿版）
+  const slideCorners = computed<Corners[]>(() =>
+    SLIDES.map((_, i) => {
+      const k = slideCorner[i]!.value
+      const base = SLIDE_CORNERS[i % SLIDE_CORNERS.length]!
+      return {
+        topLeft: scaleCorner(base.topLeft, k),
+        topRight: scaleCorner(base.topRight, k),
+        bottomRight: scaleCorner(base.bottomRight, k),
+        bottomLeft: scaleCorner(base.bottomLeft, k)
+      }
+    })
+  )
+
   // 各段落的起點（addTo 時算出），供捲動同步與吸附使用
   let browseAt = 0
-  let sceneCaptionAt = Infinity
+  // 每張大圖的時間點：switchAt = 說明文字換成這張的時間（前一張說明已淡出）、enterAt = 開始滑入、
+  // captionAt = 說明浮現、leaveAt = 開始換下一張（最後一張為 Infinity）
+  type SceneTime = { switchAt: number; enterAt: number; captionAt: number; leaveAt: number }
+  let sceneTimes: SceneTime[] = []
   let collapseStart = Infinity // 卡片開始收合的時間點：之後停止播放影片
 
   const posAt = (time: number) => gsap.utils.clamp(0, Math.max(0, total.value - 1), (time - browseAt) / CARD)
@@ -281,7 +340,7 @@
     const flipInAt = flipOutAt + FLIP_OUT
     const spreadAt = flipInAt + FLIP_IN
     const expandAt = spreadAt + SPREAD
-    sceneCaptionAt = expandAt + EXPAND
+    const firstCaptionAt = expandAt + EXPAND
     const tiles = tileEls.value
 
     // 三張圖的起始狀態先套好（聚在中央、轉成側面），翻牌那一刻才顯示，避免顯示的瞬間還沒套上位置 / 角度。
@@ -289,6 +348,12 @@
     tiles.forEach((tile, i) =>
       tl.set(tile, { ...vars(layout.compact[i]!), rotationY: -90, transformPerspective: 1400 }, 0)
     )
+    // 第二張起的大圖：起始在畫面下方、傾斜、縮小並隱藏；換圖用的壓暗層也先設好初始透明度。
+    // （同上，寫在 timeline 起點；之後的補間 immediateRender: false，往回捲過起點時會還原成這裡設定的狀態，
+    //   沒設定的話會還原成 CSS 預設值，例如壓暗層變成不透明）
+    slideEls.value.forEach((slide) => tl.set(slide, { yPercent: 125, rotation: 4, scale: 0.86, autoAlpha: 0 }, 0))
+    if (mainTint.value) tl.set(mainTint.value, { autoAlpha: 0 }, 0)
+    slideTints.value.forEach((tint) => tl.set(tint, { autoAlpha: 0.65 }, 0))
 
     tl
       // 1. 瀏覽：輪盤位置隨捲動連續轉動，背景大字反向平移
@@ -366,14 +431,142 @@
         sceneCaption.value,
         { autoAlpha: 0, y: 24 },
         { autoAlpha: 1, y: 0, duration: CAPTION, ease: 'power2.out' },
-        sceneCaptionAt
+        firstCaptionAt
       )
 
-    return { browseAt, browseEnd, cardDur: CARD, count: total.value }
+    // 7. 換圖（參考 kprverse）：目前的滿版圖縮成帶外框角的卡片、傾斜往上滑走（同時壓暗），
+    //    下一張從下方傾斜滑入，轉正後展開回滿版；說明文字與底部壓暗在換圖時暫時退場
+    sceneTimes = [{ switchAt: -Infinity, enterAt: -Infinity, captionAt: firstCaptionAt, leaveAt: Infinity }]
+    const mainTile = tiles[tiles.length - 1]
+    // 目前的大圖離場：說明文字與底部壓暗退場，大圖縮成帶外框角的卡片（微微傾斜）→ 往上傾斜滑走、逐漸壓暗
+    const leave = (
+      el: HTMLElement | undefined,
+      corner: { value: number },
+      tint: HTMLElement | null | undefined,
+      at: number
+    ) => {
+      if (!el) return
+      tl.fromTo(
+        sceneCaption.value,
+        { autoAlpha: 1, y: 0 },
+        { autoAlpha: 0, y: -16, duration: 0.3, ease: 'power1.in', immediateRender: false },
+        at
+      )
+        .fromTo(sceneShade.value, { autoAlpha: 1 }, { autoAlpha: 0, duration: 0.3, immediateRender: false }, at)
+        .fromTo(
+          el,
+          { scale: 1, rotation: 0 },
+          { scale: 0.88, rotation: -3, duration: FRAME, ease: 'power2.out', immediateRender: false },
+          at
+        )
+        .fromTo(
+          corner,
+          { value: 0 },
+          { value: CARD_CORNER, duration: FRAME, ease: 'power2.out', immediateRender: false },
+          at
+        )
+        .fromTo(
+          el,
+          { yPercent: 0 },
+          { yPercent: -125, duration: LEAVE, ease: 'power1.in', immediateRender: false },
+          at + FRAME * 0.6
+        )
+        .fromTo(
+          el,
+          { rotation: -3 },
+          { rotation: -5, duration: LEAVE - FRAME * 0.4, ease: 'power1.in', immediateRender: false },
+          at + FRAME
+        )
+      if (tint) tl.fromTo(tint, { autoAlpha: 0 }, { autoAlpha: 0.65, duration: FRAME + LEAVE, immediateRender: false }, at)
+    }
+    SLIDES.forEach((_, i) => {
+      const prev = i === 0 ? mainTile : slideEls.value[i - 1]
+      const prevCorner = i === 0 ? mainCorner : slideCorner[i - 1]!
+      const prevTint = i === 0 ? mainTint.value : slideTints.value[i - 1]
+      const next = slideEls.value[i]
+      if (!prev || !next) return
+      const leaveAt = sceneTimes[i]!.captionAt + CAPTION + SCENE_HOLD
+      const enterAt = leaveAt + ENTER_DELAY
+      const settleAt = enterAt + ENTER
+      const captionAt = settleAt + SETTLE
+      sceneTimes[i]!.leaveAt = leaveAt
+      sceneTimes.push({ switchAt: leaveAt + 0.3, enterAt, captionAt, leaveAt: Infinity })
+
+      leave(prev, prevCorner, prevTint, leaveAt)
+      tl
+        // 下一張：從下方傾斜滑入 → 轉正、展開回滿版（外框角收回、壓暗退去、圖片微微拉遠）
+        .fromTo(next, { autoAlpha: 0 }, { autoAlpha: 1, duration: 0.01, immediateRender: false }, enterAt)
+        .fromTo(
+          next,
+          { yPercent: 125, rotation: 4 },
+          { yPercent: 0, rotation: 1.5, duration: ENTER, ease: 'power2.out', immediateRender: false },
+          enterAt
+        )
+        .fromTo(
+          next,
+          { scale: 0.86, rotation: 1.5 },
+          { scale: 1, rotation: 0, duration: SETTLE, ease: 'power2.inOut', immediateRender: false },
+          settleAt
+        )
+        .fromTo(
+          slideCorner[i]!,
+          { value: CARD_CORNER },
+          { value: 0, duration: SETTLE, ease: 'power2.inOut', immediateRender: false },
+          settleAt
+        )
+        .fromTo(
+          slideTints.value[i]!,
+          { autoAlpha: 0.65 },
+          { autoAlpha: 0, duration: ENTER + SETTLE, ease: 'power1.out', immediateRender: false },
+          enterAt
+        )
+        .fromTo(
+          slideMedia.value[i]!,
+          { scale: 1.12 },
+          { scale: 1, duration: ENTER + SETTLE, ease: 'power2.out', immediateRender: false },
+          enterAt
+        )
+        .fromTo(
+          sceneShade.value,
+          { autoAlpha: 0 },
+          { autoAlpha: 1, duration: SETTLE, immediateRender: false },
+          settleAt + SETTLE * 0.4
+        )
+        .fromTo(
+          sceneCaption.value,
+          { autoAlpha: 0, y: 24 },
+          { autoAlpha: 1, y: 0, duration: CAPTION, ease: 'power2.out', immediateRender: false },
+          captionAt
+        )
+    })
+
+    // 8. 最後一張大圖同樣傾斜滑走，讓位給接續的 Works 區（由父層接在 exitAt 之後）
+    const lastIndex = SLIDES.length
+    const lastTime = sceneTimes[lastIndex]!
+    const exitAt = lastTime.captionAt + CAPTION + SCENE_HOLD
+    lastTime.leaveAt = exitAt
+    leave(
+      lastIndex === 0 ? mainTile : slideEls.value[lastIndex - 1],
+      lastIndex === 0 ? mainCorner : slideCorner[lastIndex - 1]!,
+      lastIndex === 0 ? mainTint.value : slideTints.value[lastIndex - 1],
+      exitAt
+    )
+
+    return { browseAt, browseEnd, cardDur: CARD, count: total.value, exitAt, exitDur: FRAME * 0.6 + LEAVE }
   }
 
   // 捲動時由父層呼叫：依時間推算目前卡片（純計算，不依賴補間的回呼）、切換說明文字的解碼
   let sceneShown = false
+  let sceneVideoAt = -1 // 正在播放影片的大圖（-1 = 無）
+  const syncSceneVideo = (index: number) => {
+    if (index === sceneVideoAt) return
+    sceneVideoAt = index
+    slideMedia.value.forEach((media, i) => {
+      if (!(media instanceof HTMLVideoElement)) return
+      if (i + 1 === index && !reduceMotion) media.play().catch(() => {})
+      else media.pause()
+    })
+  }
   // ── 影片自動播放：只播放中央那張（瀏覽段落、進場後），其餘暫停；偏好減少動態效果時不自動播放 ──
   const videoEls: (HTMLVideoElement | null)[] = []
   let videoAllowed = false
@@ -397,11 +590,19 @@
       videoAllowed = allowed
       syncVideos()
     }
-    const showScene = time >= sceneCaptionAt
-    if (showScene !== sceneShown) {
+    // 目前的大圖：最後一個「說明已切換」時間點已過的那張
+    let current = 0
+    sceneTimes.forEach((t, i) => time >= t.switchAt && (current = i))
+    const t = sceneTimes[current]
+    const showScene = !!t && time >= t.captionAt && time < t.leaveAt
+    if (current !== sceneIndex.value || showScene !== sceneShown) {
+      sceneIndex.value = current
       sceneShown = showScene
-      setScene(showScene ? SCENE.text : '')
+      setScene(showScene ? scene.value.text : '')
     }
+    // 影片大圖：滑入後才播放，滑走後暫停
+    const onScreen = !!t && time >= t.enterAt && time < t.leaveAt + FRAME + LEAVE
+    syncSceneVideo(current > 0 && onScreen ? current : -1)
   }
 
   // 點擊卡片：兩側卡片 → 捲到該張；中央卡片 → 照常開啟連結
@@ -577,11 +778,46 @@
           <TechFrame :stroke-width="0" v-bind="corners" class="h-full w-full">
             <img
               :ref="i === tileCorners.length - 1 ? (el) => (sceneImg = el as HTMLElement) : undefined"
-              :src="SCENE.image"
+              :src="SCENES[0]!.image"
               alt=""
               class="tile-img"
               loading="lazy"
             />
+            <span
+              v-if="i === tileCorners.length - 1"
+              :ref="(el) => (mainTint = el as HTMLElement)"
+              class="scene-tint invisible absolute inset-0"
+            ></span>
+          </TechFrame>
+        </div>
+        <!-- 第二張起的大圖：換圖時從下方傾斜滑入（全螢幕大小，起始狀態由 timeline 設定） -->
+        <div
+          v-for="(slide, i) in SLIDES"
+          :key="slide.index"
+          :ref="(el) => (slideEls[i] = el as HTMLElement)"
+          class="scene-slide invisible absolute inset-0"
+        >
+          <TechFrame :stroke-width="0" v-bind="slideCorners[i]" class="h-full w-full">
+            <video
+              v-if="slide.video"
+              :ref="(el) => (slideMedia[i] = el as HTMLElement)"
+              :src="slide.video"
+              :poster="slide.image"
+              class="slide-media"
+              muted
+              loop
+              playsinline
+              preload="none"
+            ></video>
+            <img
+              v-else
+              :ref="(el) => (slideMedia[i] = el as HTMLElement)"
+              :src="slide.image"
+              alt=""
+              class="slide-media"
+              loading="lazy"
+            />
+            <span :ref="(el) => (slideTints[i] = el as HTMLElement)" class="scene-tint invisible absolute inset-0"></span>
           </TechFrame>
         </div>
         <!-- 主圖展開後：壓暗（上方讓 Panel 頂列可讀、下方給說明文字）＋說明文字 -->
@@ -590,9 +826,9 @@
           ref="sceneCaption"
           class="scene-caption invisible absolute inset-x-0 bottom-0 px-10 pb-10 text-center text-white md:pb-16"
         >
-          <p class="dot-caption justify-center">{{ SCENE.index }} <i></i> {{ SCENE.label }}</p>
+          <p class="dot-caption justify-center">{{ scene.index }} <i></i> {{ scene.label }}</p>
           <p class="scene-text">
-            <span class="sr-only">{{ SCENE.text }}</span>
+            <span class="sr-only">{{ scene.text }}</span>
             <span aria-hidden="true" v-html="sceneOut"></span>
           </p>
         </div>
@@ -1024,6 +1260,15 @@
     height: calc(10000% / var(--h, 100));
     max-width: none;
     object-fit: cover;
+  }
+
+  .scene-slide {
+    will-change: transform;
+  }
+
+  /* 換圖時疊在大圖上的壓暗（滑走 / 滑入時加深，突顯前後兩張的層次） */
+  .scene-tint {
+    background: #0b0b0b;
   }
 
   .scene-shade {

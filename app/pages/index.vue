@@ -482,7 +482,7 @@
   onMounted(() => {
     // 重新整理時強制回到頁面最頂端（雙保險，搭配 scroll-restoration.client 插件），
     // 避免捲動停在中間時 ScrollTrigger 從中間區段起算
-    window.scrollTo(0, 0)
+    window.scrollTo({ top: 0, left: 0, behavior: 'instant' }) // instant：不受全站 CSS scroll-behavior: smooth 影響
 
     // 先立即把「下滑才出現」的元素設為起始隱藏態（progress 0 的樣子）。
     // 否則 loading 遮罩淡出（約 3s）到捲動動畫建立（約 3.3s）之間的空窗期，

@@ -10,8 +10,9 @@
     defineProps<{
       text: string
       hidden?: boolean // 初始是否隱藏（等呼叫 play() 才顯示）
+      speed?: number // 速度倍率（預設 1；2 = 長出與確定都快一倍，例如換頁轉場的讀取訊息）
     }>(),
-    { hidden: false }
+    { hidden: false, speed: 1 }
   )
 
   const CHARS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
@@ -49,7 +50,7 @@
       let noise: string[] = []
 
       const tick = (now: number) => {
-        const t = now - start
+        const t = (now - start) * props.speed
         const shown = Math.min(text.length, Math.floor(t / APPEAR_STEP) + 1) // 已長出的字數
         const resolved = Math.min(text.length, Math.max(0, Math.floor((t - RESOLVE_DELAY) / RESOLVE_STEP) + 1)) // 已確定的字數
 

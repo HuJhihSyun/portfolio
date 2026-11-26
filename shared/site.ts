@@ -43,3 +43,10 @@ export const PAGES = {
       `${displayName()} 的 Gallery：Instagram 日常紀錄，包含街舞（Breaking）、城市散步，以及網站設計與互動動畫實驗的幕後片段。`
   }
 } as const
+
+// 站內分頁（側選單的分頁清單、換頁轉場顯示的頁碼 / 名稱共用）：to 為 null 表示尚未製作、先不可點
+export const NAV_PAGES: { label: string; page: string; to: string | null }[] = [
+  { label: 'Home', page: '001', to: '/' },
+  { label: 'Articles', page: '002', to: null },
+  { label: 'Gallery', page: '003', to: '/gallery' }
+]

@@ -154,7 +154,7 @@
   const { onLoaded } = useGlobalLoading()
   let cancelEnter: (() => void) | null = null
   onMounted(() => {
-    window.scrollTo(0, 0)
+    window.scrollTo({ top: 0, left: 0, behavior: 'instant' }) // instant：不受全站 CSS scroll-behavior: smooth 影響
     cancelEnter = onLoaded(() => {
       entered.value = true
       mm = gsap.matchMedia()

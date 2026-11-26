@@ -2,6 +2,7 @@
   import { ref, computed, watch, nextTick, onMounted, onBeforeUnmount } from 'vue'
   import gsap from 'gsap'
   import { CAREER_LINKS, SOCIAL_LINKS } from '#shared/profile'
+  import { NAV_PAGES } from '#shared/site'
 
   type HackyTextExpose = { play: (delay?: number) => void; hide: () => void }
 
@@ -9,11 +10,7 @@
   const open = defineModel<boolean>('open', { default: false })
 
   // 分頁選單：to 為路由（Articles 尚未製作，先不可點）；目前頁面依路由高亮
-  const navList: { label: string; page: string; to: string | null }[] = [
-    { label: 'Home', page: '001', to: '/' },
-    { label: 'Articles', page: '002', to: null },
-    { label: 'Gallery', page: '003', to: '/gallery' }
-  ]
+  const navList = NAV_PAGES
   const route = useRoute()
   const activeIndex = computed(() =>
     Math.max(
@@ -22,12 +19,12 @@
     )
   )
 
-  // 點選其他分頁：先播完關閉動畫，再切換路由（避免選單隨頁面卸載而瞬間消失）
-  let pendingRoute: string | null = null
+  // 點選其他分頁：直接換頁，由換頁轉場（PageTransition）的方塊蓋過整個畫面（含選單）；
+  // 新頁面的選單本來就是關閉狀態，不必先播關閉動畫。點選目前頁面則只關閉選單
   const onNavClick = (i: number) => {
     const to = navList[i]?.to
-    if (to && i !== activeIndex.value) pendingRoute = to
-    close()
+    if (to && i !== activeIndex.value) navigateTo(to)
+    else close()
   }
   // Connect 區塊的連結：取自 Footer 共用的連結資料（shared/profile.ts），依此順序排列
   const SOCIAL_ORDER = ['GitHub', 'LinkedIn', 'Instagram', 'Facebook', 'LINE']
@@ -68,11 +65,6 @@
       onReverseComplete: () => {
         visible.value = false
         ;[...navLabels, ...navExtras, ...subTexts].forEach((t) => t.hide())
-        if (pendingRoute) {
-          const to = pendingRoute
-          pendingRoute = null
-          navigateTo(to)
-        }
       }
     })
 

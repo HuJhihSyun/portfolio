@@ -1,4 +1,6 @@
-// Articles 頁的分類與文章清單（目前為假內容，之後換成真正的文章；格式先定好，之後可改由 API / CMS 提供）
+// Articles 頁的分類與文章清單：已發佈的文章來自 shared/posts/（自動依分類排在各章最前面），
+// 其餘為規劃中的假內容（之後寫好文章就移到 shared/posts/）
+import { postSummaries, formatDate } from './posts'
 
 export type ArticleStatus = 'published' | 'draft' | 'planned'
 
@@ -23,7 +25,7 @@ export interface ArticleChapter {
   articles: ArticleItem[]
 }
 
-export const ARTICLE_CHAPTERS: ArticleChapter[] = [
+const CHAPTERS: ArticleChapter[] = [
   {
     key: 'frontend',
     index: '01',
@@ -141,3 +143,23 @@ export const STATUS_LABEL: Record<ArticleStatus, string> = {
   draft: 'In progress',
   planned: 'Planned'
 }
+
+// 合併已發佈的文章（shared/posts/）到對應的分類最前面
+export const ARTICLE_CHAPTERS: ArticleChapter[] = CHAPTERS.map((chapter) => ({
+  ...chapter,
+  articles: [
+    ...postSummaries()
+      .filter((post) => post.category === chapter.key)
+      .map(
+        (post): ArticleItem => ({
+          title: post.title,
+          excerpt: post.excerpt,
+          date: formatDate(post.publishedAt).slice(0, 7),
+          readTime: post.readTime,
+          status: 'published',
+          link: post.link
+        })
+      ),
+    ...chapter.articles
+  ]
+}))

@@ -266,9 +266,14 @@
                       {{ STATUS_LABEL[article.status] }} · {{ article.date
                       }}<template v-if="article.readTime"> · {{ article.readTime }}</template>
                     </p>
-                    <h3 class="item-title">{{ article.title }}</h3>
+                    <h3 class="item-title">
+                      <NuxtLink v-if="article.link" :to="article.link" class="item-title-link">{{ article.title }}</NuxtLink>
+                      <template v-else>{{ article.title }}</template>
+                    </h3>
                     <p class="item-excerpt">{{ article.excerpt }}</p>
-                    <a v-if="article.link" :href="article.link" class="item-link link-hover"><span>Read article →</span></a>
+                    <NuxtLink v-if="article.link" :to="article.link" class="item-link link-hover" data-cursor="Read"
+                      ><span>Read article →</span></NuxtLink
+                    >
                     <p v-else class="item-soon">Coming soon</p>
                   </li>
                 </ol>
@@ -532,6 +537,15 @@
     font-size: clamp(22px, 2.2vw, 32px);
     font-weight: 700;
     line-height: 1.15;
+  }
+
+  .item-title-link {
+    background: linear-gradient(currentColor, currentColor) 0 100% / 0 1px no-repeat;
+    transition: background-size 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+
+    &:hover {
+      background-size: 100% 1px;
+    }
   }
 
   .item-excerpt {

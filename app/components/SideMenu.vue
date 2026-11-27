@@ -15,7 +15,8 @@
   const activeIndex = computed(() =>
     Math.max(
       0,
-      navList.findIndex((item) => item.to === route.path)
+      // 子頁面（例如 /articles/xxx）也標示所屬的分頁
+      navList.findIndex((item) => item.to === route.path || (item.to && item.to !== '/' && route.path.startsWith(`${item.to}/`)))
     )
   )
 
@@ -23,7 +24,7 @@
   // 新頁面的選單本來就是關閉狀態，不必先播關閉動畫。點選目前頁面則只關閉選單
   const onNavClick = (i: number) => {
     const to = navList[i]?.to
-    if (to && i !== activeIndex.value) navigateTo(to)
+    if (to && to !== route.path) navigateTo(to)
     else close()
   }
   // Connect 區塊的連結：取自 Footer 共用的連結資料（shared/profile.ts），依此順序排列

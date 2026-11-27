@@ -9,7 +9,7 @@
   // 側選單開關（由 Panel 的漢堡按鈕以 v-model:open 控制）
   const open = defineModel<boolean>('open', { default: false })
 
-  // 分頁選單：to 為路由（Articles 尚未製作，先不可點）；目前頁面依路由高亮
+  // 分頁選單：to 為路由（to 為 null 的分頁先不可點）；目前頁面依路由高亮
   const navList = NAV_PAGES
   const route = useRoute()
   const activeIndex = computed(() =>

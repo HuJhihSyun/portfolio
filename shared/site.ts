@@ -36,6 +36,12 @@ export const PAGES = {
     description: () =>
       `${displayName()} 的個人作品集。${SITE.jobTitleZh}（${SITE.jobTitle}），專精 Vue / Nuxt、GSAP 互動動畫、D3.js 資料視覺化與網站效能優化（LCP / CLS），以設計結合程式打造沉浸式網頁體驗。`
   },
+  articles: {
+    path: '/articles',
+    title: () => `Articles｜${displayName()} 的前端開發與互動設計筆記`,
+    description: () =>
+      `${displayName()} 的 Articles：前端開發（Vue / Nuxt）、GSAP 互動動畫與網頁設計的筆記與心得。`
+  },
   gallery: {
     path: '/gallery',
     title: () => `Gallery｜${displayName()} 的 Instagram 日常與創作紀錄`,
@@ -47,6 +53,6 @@ export const PAGES = {
 // 站內分頁（側選單的分頁清單、換頁轉場顯示的頁碼 / 名稱共用）：to 為 null 表示尚未製作、先不可點
 export const NAV_PAGES: { label: string; page: string; to: string | null }[] = [
   { label: 'Home', page: '001', to: '/' },
-  { label: 'Articles', page: '002', to: null },
+  { label: 'Articles', page: '002', to: '/articles' },
   { label: 'Gallery', page: '003', to: '/gallery' }
 ]

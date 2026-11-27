@@ -182,6 +182,7 @@
         setCaption(bodyText(current.value))
         videoAllowed = true
         syncVideos()
+        syncCursor(lastTime)
       },
       reduceMotion ? 0 : 700
     )
@@ -581,7 +582,25 @@
     })
   }
 
+  // ── 首屏（卡片輪盤瀏覽中）把游標切成圓形進度條：進度 = 輪盤位置；開始收合後切回全站游標 ──
+  const cursor = useCursorMode()
+  let lastTime = 0
+  const syncCursor = (time: number) => {
+    if (!introDone || time >= collapseStart) return cursor.reset()
+    const last = Math.max(1, total.value - 1)
+    const index = Math.round(posAt(time))
+    // 文字只在換卡時改變（才會觸發重繪）；進度每次捲動都更新，但直接寫入游標的 DOM
+    cursor.set('progress', {
+      index: pad(index + 1),
+      meta: `Post ${pad(index + 1)} / ${pad(total.value)}`,
+      label: 'Scroll'
+    })
+    cursor.setProgress(posAt(time) / last)
+  }
+
   const onScroll = (time: number) => {
+    lastTime = time
+    syncCursor(time)
     const index = Math.round(posAt(time))
     const allowed = introDone && time < collapseStart
     if (index !== active.value || allowed !== videoAllowed) {
@@ -633,6 +652,7 @@
   onBeforeUnmount(() => {
     window.removeEventListener('keydown', onKeydown)
     gsap.killTweensOf([wheel.value, bgWord.value])
+    cursor.reset() // 離開 Gallery 時游標切回全站樣式
   })
 
   defineExpose({ addTo, onScroll })
